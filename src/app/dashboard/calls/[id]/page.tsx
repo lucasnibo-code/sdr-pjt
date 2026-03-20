@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -16,7 +15,9 @@ import {
   Lightbulb,
   ArrowLeft,
   Trophy,
-  Target
+  Target,
+  BadgeAlert,
+  Frown
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -89,7 +90,6 @@ export default function CallDetailPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          {/* Audio & Summary Player */}
           <Card className="bg-primary text-primary-foreground border-none overflow-hidden">
             <CardContent className="pt-6 pb-6">
               <div className="flex flex-col md:flex-row gap-6 items-center">
@@ -101,7 +101,7 @@ export default function CallDetailPage() {
                   {isPlaying ? <Pause className="w-8 h-8" /> : <Play className="w-8 h-8 ml-1" />}
                 </Button>
                 <div className="flex-1 space-y-2 text-center md:text-left">
-                  <h3 className="text-lg font-bold">Resumo da Chamada</h3>
+                  <h3 className="text-lg font-bold">Resumo IA</h3>
                   <p className="text-sm opacity-90 leading-relaxed italic">
                     "{call.resumo}"
                   </p>
@@ -110,11 +110,10 @@ export default function CallDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Detailed Tabs */}
           <Tabs defaultValue="insights" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="insights">Análise Técnica</TabsTrigger>
-              <TabsTrigger value="alerts">Alertas & Melhorias</TabsTrigger>
+              <TabsTrigger value="insights">Feedback Técnico</TabsTrigger>
+              <TabsTrigger value="alerts">Pontos de Atenção</TabsTrigger>
             </TabsList>
             
             <TabsContent value="insights" className="mt-4 space-y-4">
@@ -128,8 +127,8 @@ export default function CallDetailPage() {
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {call.pontos_fortes.map((p, i) => (
-                      <div key={i} className="flex items-start gap-3 p-3 bg-green-50 rounded-lg text-green-800 text-sm">
-                        <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                      <div key={i} className="flex items-start gap-3 p-3 bg-green-50 rounded-lg text-green-800 text-sm border border-green-100">
+                        <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-green-600" />
                         {p}
                       </div>
                     ))}
@@ -141,7 +140,7 @@ export default function CallDetailPage() {
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
                     <Lightbulb className="w-5 h-5 text-blue-500" />
-                    Ponto de Atenção Principal
+                    Insight de Melhoria
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -156,7 +155,7 @@ export default function CallDetailPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2 text-red-600">
-                    <AlertTriangle className="w-5 h-5" />
+                    <BadgeAlert className="w-5 h-5" />
                     Alertas Críticos
                   </CardTitle>
                 </CardHeader>
@@ -175,13 +174,13 @@ export default function CallDetailPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
-                    <Target className="w-5 h-5 text-orange-500" />
-                    Maior Dificuldade do SDR
+                    <Frown className="w-5 h-5 text-orange-500" />
+                    Maior Dificuldade Observada
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {call.maior_dificuldade}
+                <CardContent className="p-4 bg-orange-50/50 border border-orange-100 rounded-lg">
+                  <p className="text-sm text-orange-900 leading-relaxed italic">
+                    "{call.maior_dificuldade}"
                   </p>
                 </CardContent>
               </Card>
@@ -190,7 +189,6 @@ export default function CallDetailPage() {
         </div>
 
         <div className="space-y-6">
-          {/* SPIN Score Card */}
           <Card className="border-primary/20 shadow-lg">
             <CardHeader className="bg-primary/5 text-center">
               <CardTitle className="text-lg uppercase tracking-widest text-primary">Nota SPIN</CardTitle>
@@ -204,7 +202,7 @@ export default function CallDetailPage() {
               </div>
 
               <div className="space-y-4 pt-4 border-t">
-                <p className="text-xs font-bold text-muted-foreground uppercase">Desempenho por Etapa</p>
+                <p className="text-xs font-bold text-muted-foreground uppercase">Distribuição Playbook</p>
                 {[
                   { label: 'Situação', score: 9 },
                   { label: 'Problema', score: 7 },
@@ -223,23 +221,18 @@ export default function CallDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Meta Information Card */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">Metadados da Chamada</CardTitle>
+              <CardTitle className="text-sm">Metadados</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 text-xs">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">ID da Chamada</span>
+                <span className="text-muted-foreground">ID Interno</span>
                 <span className="font-mono">{call.callId}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Analisado em</span>
+                <span className="text-muted-foreground">Analise em</span>
                 <span>{new Date(call.analyzedAt || "").toLocaleDateString('pt-BR')}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">ID do SDR</span>
-                <span>{call.ownerUserId || 'N/A'}</span>
               </div>
             </CardContent>
           </Card>

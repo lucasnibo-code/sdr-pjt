@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -9,7 +8,9 @@ import {
   UploadCloud, 
   Settings, 
   LogOut,
-  Mic2
+  Mic2,
+  Users,
+  Trophy
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -30,8 +31,10 @@ export function SidebarNav() {
 
   const menuItems = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Calls List', href: '/dashboard/calls', icon: PhoneCall },
-    { name: 'Upload Recording', href: '/dashboard/upload', icon: UploadCloud },
+    { name: 'Equipes', href: '/dashboard/teams', icon: Users },
+    { name: 'Ranking SDR', href: '/dashboard/sdrs', icon: Trophy },
+    { name: 'Todas as Calls', href: '/dashboard/calls', icon: PhoneCall },
+    { name: 'Novo Upload', href: '/dashboard/upload', icon: UploadCloud },
   ];
 
   return (
@@ -68,18 +71,18 @@ export function SidebarNav() {
       <SidebarFooter className="p-4 border-t">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Settings">
+            <SidebarMenuButton asChild tooltip="Configurações">
               <Link href="/dashboard/settings">
                 <Settings className="w-4 h-4" />
-                <span>Settings</span>
+                <span>Configurações</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild className="text-destructive hover:text-destructive" tooltip="Logout">
+            <SidebarMenuButton asChild className="text-destructive hover:text-destructive" tooltip="Sair">
               <Link href="/">
                 <LogOut className="w-4 h-4" />
-                <span>Log out</span>
+                <span>Sair</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

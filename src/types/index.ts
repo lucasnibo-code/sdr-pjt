@@ -1,19 +1,25 @@
 
-export type CallStatus = 'pending' | 'processing' | 'completed' | 'failed';
+export type StatusFinal = "APROVADO" | "ATENCAO" | "REPROVADO" | "NAO_IDENTIFICADO";
 
 export interface SDRCall {
   id: string;
+  callId: string;
   title: string;
-  sdrName: string;
-  status: CallStatus;
-  duration: string;
-  createdAt: string;
-  audioUrl?: string;
-  transcript?: string;
-  summary?: string;
-  keyPoints?: string[];
-  score?: number;
-  sentiment?: 'positive' | 'neutral' | 'negative';
+  ownerId: string | null;
+  ownerName: string;
+  ownerUserId: string | null;
+  teamId: string | null;
+  teamName: string;
+  durationMs: number;
+  recordingUrl: string | null;
+  analyzedAt: string | null;
+  status_final: StatusFinal;
+  nota_spin: number;
+  resumo: string;
+  alertas: string[];
+  ponto_atencao: string;
+  maior_dificuldade: string;
+  pontos_fortes: string[];
 }
 
 export interface PerformanceMetric {

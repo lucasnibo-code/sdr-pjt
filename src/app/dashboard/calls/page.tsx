@@ -12,7 +12,7 @@ import {
   ShieldCheck,
   Download
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -29,7 +29,11 @@ export default function CallsListPage() {
     fetch('/api/calls')
       .then(res => res.json())
       .then(data => {
-        setCalls(data);
+        setCalls(Array.isArray(data) ? data : []);
+        setIsLoading(false);
+      })
+      .catch(() => {
+        setCalls([]);
         setIsLoading(false);
       });
   }, []);
@@ -48,9 +52,9 @@ export default function CallsListPage() {
   };
 
   const filteredCalls = calls.filter(call => 
-    call.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    call.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    call.teamName.toLowerCase().includes(searchTerm.toLowerCase())
+    call.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    call.ownerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    call.teamName?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -58,7 +62,7 @@ export default function CallsListPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-headline font-bold text-primary">Histórico de Chamadas</h1>
-          <p className="text-muted-foreground mt-1">Gerencie e revise todas as avaliações realizadas.</p>
+          <p className="text-muted-foreground mt-1">Dados reais de todas as avaliações realizadas.</p>
         </div>
         <Button variant="outline" size="sm">
           <Download className="w-4 h-4 mr-2" /> Exportar CSV
@@ -110,7 +114,7 @@ export default function CallsListPage() {
                   ) : (
                     filteredCalls.map((call) => (
                       <tr key={call.id} className="border-b transition-colors hover:bg-muted/20">
-                        <td className="p-4 align-middle font-medium">{call.title}</td>
+                        <td className="p-4 align-middle font-medium">{call.title || 'Chamada sem Título'}</td>
                         <td className="p-4 align-middle">
                           <div className="flex flex-col">
                             <span className="font-semibold text-xs">{call.ownerName}</span>

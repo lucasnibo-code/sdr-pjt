@@ -1,10 +1,11 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
 import { TeamCard } from '@/components/dashboard/TeamCard';
 import { groupCallsByTeam } from '@/lib/groupers';
 import type { SDRCall } from '@/types';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Users } from 'lucide-react';
 
 export default function TeamsPage() {
   const [calls, setCalls] = useState<SDRCall[]>([]);
@@ -14,7 +15,11 @@ export default function TeamsPage() {
     fetch('/api/calls')
       .then(res => res.json())
       .then(data => {
-        setCalls(data);
+        setCalls(Array.isArray(data) ? data : []);
+        setIsLoading(false);
+      })
+      .catch(() => {
+        setCalls([]);
         setIsLoading(false);
       });
   }, []);
@@ -28,6 +33,18 @@ export default function TeamsPage() {
   }
 
   const grouped = groupCallsByTeam(calls);
+
+  if (Object.keys(grouped).length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] text-center space-y-4">
+        <Users className="w-12 h-12 text-muted-foreground opacity-20" />
+        <div>
+          <h2 className="text-xl font-bold">Nenhuma equipe identificada</h2>
+          <p className="text-muted-foreground">Não há dados de chamadas vinculados a equipes no momento.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

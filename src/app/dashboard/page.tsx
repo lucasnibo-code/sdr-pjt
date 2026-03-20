@@ -1,15 +1,15 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
 import { 
   BarChart3, 
   PhoneCall, 
-  Target,
   Zap,
   CheckCircle2,
   AlertCircle,
   XCircle,
-  TrendingUp
+  Inbox
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { calculateAverageSpin, getStatusCounts } from '@/lib/metrics';
@@ -26,7 +26,11 @@ export default function DashboardPage() {
     fetch('/api/calls')
       .then(res => res.json())
       .then(data => {
-        setCalls(data);
+        setCalls(Array.isArray(data) ? data : []);
+        setIsLoading(false);
+      })
+      .catch(() => {
+        setCalls([]);
         setIsLoading(false);
       });
   }, []);
@@ -44,11 +48,23 @@ export default function DashboardPage() {
 
   if (isLoading) return <div className="p-10 text-center">Carregando Dashboard...</div>;
 
+  if (calls.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] text-center space-y-4">
+        <Inbox className="w-12 h-12 text-muted-foreground opacity-20" />
+        <div>
+          <h2 className="text-xl font-bold">Nenhum dado encontrado</h2>
+          <p className="text-muted-foreground">Aguardando as primeiras chamadas serem processadas.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-headline font-bold text-primary">Resumo da Operação</h1>
-        <p className="text-muted-foreground mt-1">Acompanhe as métricas de qualidade em tempo real.</p>
+        <p className="text-muted-foreground mt-1">Dados reais de performance técnica.</p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">

@@ -1,9 +1,8 @@
-
 import type {Metadata} from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Nibo | Análise de Ligações',
+  title: 'Nibo | Análise de ligações',
   description: 'Plataforma de inteligência para análise e avaliação de chamadas.',
 };
 

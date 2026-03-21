@@ -2,7 +2,7 @@
 "use client";
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { 
   PhoneCall, 
   UploadCloud, 
@@ -24,8 +24,13 @@ import {
 
 export function SidebarNav() {
   const pathname = usePathname();
+  const router = useRouter();
 
-  // Menu simplificado para a V1: Apenas o núcleo do produto
+  const handleLogout = () => {
+    localStorage.removeItem('auth_v1');
+    router.push('/login');
+  };
+
   const menuItems = [
     { name: 'Chamadas', href: '/dashboard', icon: PhoneCall },
     { name: 'Upload Manual', href: '/dashboard/upload', icon: UploadCloud },
@@ -57,12 +62,12 @@ export function SidebarNav() {
                       "transition-all duration-200 rounded-lg h-9 px-3",
                       pathname === item.href 
                         ? "bg-slate-50 text-slate-900 font-medium" 
-                        : "text-slate-500 hover:text-slate-900 hover:bg-slate-50/50"
+                        : "text-slate-400 hover:text-slate-900 hover:bg-slate-50/50"
                     )}
                   >
                     <Link href={item.href}>
-                      <item.icon className={cn("w-4 h-4", pathname === item.href ? "text-slate-900" : "text-slate-400")} />
-                      <span className="text-sm">{item.name}</span>
+                      <item.icon className={cn("w-4 h-4", pathname === item.href ? "text-slate-900" : "text-slate-300")} />
+                      <span className="text-sm font-medium">{item.name}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -74,11 +79,13 @@ export function SidebarNav() {
       <SidebarFooter className="p-6 border-t border-slate-50">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild className="text-slate-400 hover:text-red-500 transition-colors" tooltip="Sair">
-              <Link href="/">
-                <LogOut className="w-4 h-4" />
-                <span className="text-sm">Sair</span>
-              </Link>
+            <SidebarMenuButton 
+              onClick={handleLogout}
+              className="text-slate-400 hover:text-red-500 transition-colors h-9 px-3"
+              tooltip="Sair"
+            >
+              <LogOut className="w-4 h-4 text-slate-300" />
+              <span className="text-sm font-medium">Sair</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

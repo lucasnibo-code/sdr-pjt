@@ -5,7 +5,8 @@ import { usePathname, useRouter } from 'next/navigation';
 import { 
   PhoneCall, 
   UploadCloud, 
-  LogOut
+  LogOut,
+  Users
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { NiboLogo } from '@/components/ui/nibo-logo';
@@ -32,6 +33,7 @@ export function SidebarNav() {
 
   const menuItems = [
     { name: 'Chamadas', href: '/dashboard', icon: PhoneCall },
+    { name: 'SDRs', href: '/dashboard/sdrs', icon: Users },
     { name: 'Upload Manual', href: '/dashboard/upload', icon: UploadCloud },
   ];
 
@@ -50,17 +52,17 @@ export function SidebarNav() {
                 <SidebarMenuItem key={item.name}>
                   <SidebarMenuButton 
                     asChild 
-                    isActive={pathname === item.href}
+                    isActive={pathname.startsWith(item.href) && (item.href !== '/dashboard' || pathname === '/dashboard')}
                     tooltip={item.name}
                     className={cn(
                       "transition-all duration-200 rounded-lg h-9 px-3",
-                      pathname === item.href 
+                      (pathname.startsWith(item.href) && (item.href !== '/dashboard' || pathname === '/dashboard'))
                         ? "bg-slate-50 text-slate-900 font-medium" 
                         : "text-slate-400 hover:text-slate-900 hover:bg-slate-50/50"
                     )}
                   >
                     <Link href={item.href}>
-                      <item.icon className={cn("w-4 h-4", pathname === item.href ? "text-slate-900" : "text-slate-300")} />
+                      <item.icon className={cn("w-4 h-4", (pathname.startsWith(item.href) && (item.href !== '/dashboard' || pathname === '/dashboard')) ? "text-slate-900" : "text-slate-300")} />
                       <span className="text-xs font-bold uppercase tracking-wider">{item.name}</span>
                     </Link>
                   </SidebarMenuButton>

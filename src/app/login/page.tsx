@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Button } from '@/components/ui/button';
@@ -18,11 +17,11 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex items-center justify-center bg-white p-4">
       <div className="w-full max-w-md space-y-8 animate-in fade-in duration-700">
         <div className="text-center space-y-4">
-          <div className="flex justify-center">
-            <NiboLogo className="h-12 w-auto" />
+          <div className="flex justify-center bg-white p-4 rounded-full inline-block">
+            <NiboLogo className="h-16 w-auto" />
           </div>
           <p className="text-slate-400 text-sm">Análise de ligações</p>
         </div>

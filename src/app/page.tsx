@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Button } from '@/components/ui/button';
@@ -10,8 +9,8 @@ export default function Home() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-white p-6">
       <div className="w-full max-w-sm space-y-12 text-center animate-in fade-in duration-700">
         <div className="space-y-6">
-          <div className="flex justify-center">
-            <NiboLogo className="h-16 w-auto" />
+          <div className="flex justify-center bg-white p-4 rounded-full">
+            <NiboLogo className="h-24 w-auto" />
           </div>
           <div className="space-y-2">
             <h1 className="text-2xl font-headline font-bold text-slate-900 tracking-tight">

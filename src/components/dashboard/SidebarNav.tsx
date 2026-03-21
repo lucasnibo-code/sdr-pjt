@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -40,7 +39,9 @@ export function SidebarNav() {
     <Sidebar variant="sidebar" collapsible="icon" className="border-r border-slate-100 bg-white">
       <SidebarHeader className="p-6">
         <Link href="/dashboard" className="flex items-center gap-3 text-slate-900 group">
-          <NiboLogo className="h-6 w-auto shrink-0" />
+          <div className="bg-white p-1 rounded-md shrink-0">
+            <NiboLogo className="h-6 w-auto" />
+          </div>
           <span className="font-headline font-bold text-sm tracking-tight group-data-[collapsible=icon]:hidden whitespace-nowrap">
             Análise de ligações
           </span>

@@ -2,28 +2,25 @@ export type StatusFinal = "APROVADO" | "ATENCAO" | "REPROVADO" | "NAO_IDENTIFICA
 export type CallSource = "HUBSPOT" | "MANUAL";
 
 export interface SDRCall {
-  id: string;
-  callId: string;
-  title: string;
-  ownerName: string;
-  teamName: string;
-  analyzedAt: string | null;
-  durationMs: number;
-  nota_spin: number;
+  id: string;               // ID único no sistema (Firestore)
+  callId: string;           // ID de referência externa
+  title: string;            // Título da chamada
+  ownerId: string | null;
+  ownerName: string;        // Nome do SDR
+  ownerUserId: string | null;
+  teamId: string | null;
+  teamName: string;         // Nome da Equipe
+  durationMs: number;       // Duração em ms
+  recordingUrl: string | null;
+  analyzedAt: string | null; // Data ISO
   status_final: StatusFinal;
+  nota_spin: number;        // Nota 0-10
   source: CallSource;
-  // Campos detalhados (opcionais na listagem)
-  resumo?: string;
-  alertas?: string[];
-  ponto_atencao?: string;
-  maior_dificuldade?: string;
-  pontos_fortes?: string[];
-  recordingUrl?: string | null;
-}
-
-export interface PerformanceMetric {
-  label: string;
-  value: string | number;
-  change: number;
-  trend: 'up' | 'down' | 'neutral';
+  
+  // Campos detalhados da análise
+  resumo: string;
+  alertas: string[];
+  ponto_atencao: string;
+  maior_dificuldade: string;
+  pontos_fortes: string[];
 }

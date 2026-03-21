@@ -6,13 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { UploadCloud, FileAudio, CheckCircle2, Loader2, Link as LinkIcon } from 'lucide-react';
+import { UploadCloud, Loader2, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { cn } from '@/lib/utils';
 
 export default function UploadPage() {
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [dragActive, setDragActive] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
@@ -21,39 +21,45 @@ export default function UploadPage() {
     e.preventDefault();
     setIsUploading(true);
     
-    // Simulating upload progress
-    for (let i = 0; i <= 100; i += 20) {
-      setUploadProgress(i);
-      await new Promise(r => setTimeout(r, 400));
-    }
+    // Simulação de processamento para V1
+    await new Promise(r => setTimeout(r, 2000));
 
     toast({
-      title: "Upload Concluído",
-      description: "Sua gravação está sendo processada pela nossa IA.",
+      title: "Upload Enviado",
+      description: "A chamada foi enviada para análise e aparecerá no feed em breve.",
     });
 
     setIsUploading(false);
-    router.push('/dashboard/calls');
+    router.push('/dashboard');
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-3xl font-headline font-bold text-primary">Ingestão de Dados</h1>
-        <p className="text-muted-foreground mt-1">Envie suas gravações ou linke de fontes externas.</p>
+    <div className="max-w-xl mx-auto space-y-8 animate-in fade-in duration-500">
+      <div className="space-y-2">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={() => router.push('/dashboard')}
+          className="w-fit -ml-2 text-slate-400 hover:text-slate-900"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Voltar ao feed
+        </Button>
+        <h1 className="text-2xl font-headline font-bold text-slate-900">Laboratório de Validação</h1>
+        <p className="text-slate-400 text-sm">Use esta ferramenta para testar o algoritmo de análise com novos áudios.</p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Upload de Arquivo</CardTitle>
-          <CardDescription>Formatos suportados: MP3, WAV, M4A. Tamanho máximo 50MB.</CardDescription>
+      <Card className="border-slate-100 shadow-none bg-white">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-sm font-bold uppercase tracking-widest text-slate-900">Upload de Áudio</CardTitle>
+          <CardDescription className="text-xs text-slate-400">Envie arquivos MP3 ou WAV (Máx 50MB).</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleUpload} className="space-y-6">
             <div 
               className={cn(
-                "border-2 border-dashed rounded-xl p-12 text-center transition-all cursor-pointer",
-                dragActive ? "border-primary bg-primary/5" : "border-muted-foreground/20 hover:border-primary/50 hover:bg-accent/5",
+                "border border-dashed rounded-xl p-10 text-center transition-all cursor-pointer",
+                dragActive ? "border-slate-900 bg-slate-50" : "border-slate-200 hover:border-slate-400",
                 isUploading ? "pointer-events-none opacity-50" : ""
               )}
               onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
@@ -61,64 +67,41 @@ export default function UploadPage() {
               onDrop={(e) => { e.preventDefault(); setDragActive(false); }}
             >
               {isUploading ? (
-                <div className="space-y-4">
-                  <Loader2 className="w-10 h-10 mx-auto animate-spin text-primary" />
-                  <p className="font-medium">Fazendo upload... {uploadProgress}%</p>
+                <div className="space-y-3">
+                  <Loader2 className="w-8 h-8 mx-auto animate-spin text-slate-900" />
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Processando áudio...</p>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="p-3 bg-primary/10 rounded-full w-fit mx-auto">
-                    <UploadCloud className="w-8 h-8 text-primary" />
-                  </div>
+                  <UploadCloud className="w-8 h-8 mx-auto text-slate-200" />
                   <div>
-                    <p className="text-lg font-medium">Arraste e solte o áudio aqui</p>
-                    <p className="text-sm text-muted-foreground">ou clique para selecionar do seu computador</p>
+                    <p className="text-sm font-medium text-slate-600">Arraste o arquivo ou clique para selecionar</p>
                   </div>
                   <Input type="file" className="hidden" id="file-upload" accept="audio/*" />
                   <Label htmlFor="file-upload" className="block">
-                    <Button type="button" variant="secondary">Selecionar Arquivo</Button>
+                    <Button type="button" variant="outline" size="sm" className="text-xs font-bold uppercase tracking-wider">Selecionar do PC</Button>
                   </Label>
                 </div>
               )}
             </div>
 
             <div className="space-y-4">
-              <div className="grid gap-2">
-                <Label htmlFor="call-title">Título da Chamada</Label>
-                <Input id="call-title" placeholder="Ex: Prospecção Inicial - Empresa XYZ" required />
+              <div className="grid gap-1.5">
+                <Label htmlFor="call-title" className="text-[10px] font-bold uppercase text-slate-400">Título da Chamada</Label>
+                <Input id="call-title" placeholder="Ex: Call de Teste - Playbook V2" className="text-sm border-slate-100" required />
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="sdr-name">Nome do SDR</Label>
-                <Input id="sdr-name" placeholder="Nome do responsável" required />
+              <div className="grid gap-1.5">
+                <Label htmlFor="sdr-name" className="text-[10px] font-bold uppercase text-slate-400">Nome do SDR</Label>
+                <Input id="sdr-name" placeholder="Responsável pela ligação" className="text-sm border-slate-100" required />
               </div>
             </div>
 
-            <Button className="w-full" size="lg" disabled={isUploading}>
-              {isUploading ? "Processando..." : "Iniciar Análise"}
+            <Button className="w-full h-11 bg-slate-900 text-white hover:bg-slate-800 transition-all font-bold uppercase tracking-widest text-[11px]" disabled={isUploading}>
+              {isUploading ? "Enviando..." : "Iniciar Análise Técnica"}
             </Button>
           </form>
         </CardContent>
       </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Link Externo</CardTitle>
-          <CardDescription>Vincule uma gravação hospedada no Google Drive, Dropbox ou Zoom.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <LinkIcon className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-              <Input className="pl-10" placeholder="https://drive.google.com/..." />
-            </div>
-            <Button variant="outline">Verificar</Button>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
-}
-
-function cn(...inputs: any[]) {
-  return inputs.filter(Boolean).join(' ');
 }

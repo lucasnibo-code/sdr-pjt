@@ -18,24 +18,23 @@ export default function DashboardLayout({
         <SidebarInset className="flex flex-col min-h-screen">
           <header className="flex h-14 items-center justify-between border-b bg-white px-6 sticky top-0 z-10">
             <div className="flex items-center gap-4">
-              <SidebarTrigger className="h-8 w-8 text-slate-500" />
-              <div className="h-4 w-px bg-slate-200 hidden md:block" />
-              <h2 className="text-xs font-medium text-slate-400 uppercase tracking-wider hidden md:block">
-                SDR Management System
+              <SidebarTrigger className="h-8 w-8 text-slate-400 hover:text-slate-900 transition-colors" />
+              <div className="h-4 w-px bg-slate-100 hidden md:block" />
+              <h2 className="text-[10px] font-bold text-slate-300 uppercase tracking-[0.2em] hidden md:block">
+                V1 Reader Edition
               </h2>
             </div>
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
-                <p className="text-xs font-semibold text-slate-900 leading-none">Admin</p>
-                <p className="text-[10px] text-slate-400 mt-1">SDR Manager</p>
+                <p className="text-[10px] font-bold text-slate-900 leading-none uppercase tracking-wider">Admin</p>
               </div>
-              <Avatar className="h-8 w-8 border border-slate-100">
+              <Avatar className="h-7 w-7 border border-slate-100">
                 <AvatarImage src={userAvatar?.imageUrl} />
-                <AvatarFallback>AD</AvatarFallback>
+                <AvatarFallback className="text-[10px] font-bold">AD</AvatarFallback>
               </Avatar>
             </div>
           </header>
-          <main className="flex-1 p-8 overflow-auto max-w-[1400px] mx-auto w-full">
+          <main className="flex-1 p-6 md:p-10 overflow-auto max-w-5xl mx-auto w-full">
             {children}
           </main>
         </SidebarInset>

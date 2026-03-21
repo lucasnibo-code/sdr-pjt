@@ -4,13 +4,10 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
-  LayoutDashboard, 
   PhoneCall, 
   UploadCloud, 
   LogOut,
-  Mic2,
-  Users,
-  Trophy
+  Mic2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -28,12 +25,10 @@ import {
 export function SidebarNav() {
   const pathname = usePathname();
 
+  // Menu simplificado para a V1: Apenas o núcleo do produto
   const menuItems = [
-    { name: 'Visão Geral', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Equipes', href: '/dashboard/teams', icon: Users },
-    { name: 'Ranking', href: '/dashboard/sdrs', icon: Trophy },
-    { name: 'Chamadas', href: '/dashboard/calls', icon: PhoneCall },
-    { name: 'Upload', href: '/dashboard/upload', icon: UploadCloud },
+    { name: 'Chamadas', href: '/dashboard', icon: PhoneCall },
+    { name: 'Upload Manual', href: '/dashboard/upload', icon: UploadCloud },
   ];
 
   return (

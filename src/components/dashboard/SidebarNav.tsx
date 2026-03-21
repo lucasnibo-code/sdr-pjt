@@ -39,11 +39,9 @@ export function SidebarNav() {
     <Sidebar variant="sidebar" collapsible="icon" className="border-r border-slate-100 bg-white">
       <SidebarHeader className="p-6">
         <Link href="/dashboard" className="flex items-center gap-3 text-slate-900 group">
-          <div className="bg-white shrink-0 flex items-center justify-center w-6 h-6">
-            <NiboLogo className="max-w-full max-h-full w-auto h-auto" />
-          </div>
-          <span className="font-headline font-bold text-sm tracking-tight group-data-[collapsible=icon]:hidden whitespace-nowrap">
-            Análise de ligações
+          <NiboLogo className="text-xl group-data-[collapsible=icon]:text-lg" />
+          <span className="font-headline font-bold text-xs text-slate-400 uppercase tracking-[0.2em] group-data-[collapsible=icon]:hidden whitespace-nowrap pt-0.5">
+            Analytics
           </span>
         </Link>
       </SidebarHeader>
@@ -66,7 +64,7 @@ export function SidebarNav() {
                   >
                     <Link href={item.href}>
                       <item.icon className={cn("w-4 h-4", pathname === item.href ? "text-slate-900" : "text-slate-300")} />
-                      <span className="text-sm font-medium">{item.name}</span>
+                      <span className="text-xs font-bold uppercase tracking-wider">{item.name}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -84,7 +82,7 @@ export function SidebarNav() {
               tooltip="Sair"
             >
               <LogOut className="w-4 h-4 text-slate-300" />
-              <span className="text-sm font-medium">Sair</span>
+              <span className="text-xs font-bold uppercase tracking-wider">Sair</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

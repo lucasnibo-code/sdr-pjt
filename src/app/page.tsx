@@ -9,14 +9,14 @@ export default function Home() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-white p-6">
       <div className="w-full max-w-sm space-y-12 text-center animate-in fade-in duration-700">
         <div className="space-y-6 flex flex-col items-center">
-          <div className="bg-white p-2 flex items-center justify-center w-24 h-24">
-            <NiboLogo className="max-w-full max-h-full w-auto h-auto" />
+          <div className="flex items-center justify-center">
+            <NiboLogo className="text-5xl" />
           </div>
           <div className="space-y-2">
-            <h1 className="text-2xl font-headline font-bold text-slate-900 tracking-tight">
+            <h1 className="text-xl font-headline font-bold text-slate-900 tracking-tight">
               Análise de ligações
             </h1>
-            <p className="text-slate-500 text-sm font-light">
+            <p className="text-slate-400 text-sm font-light">
               Plataforma de inteligência para gestão de performance.
             </p>
           </div>
@@ -26,7 +26,7 @@ export default function Home() {
           <Button 
             asChild
             variant="outline"
-            className="w-full h-12 text-sm font-medium border-slate-200 hover:bg-slate-50 transition-all rounded-lg"
+            className="w-full h-12 text-sm font-medium border-slate-100 hover:bg-slate-50 transition-all rounded-lg"
           >
             <Link href="/dashboard" className="flex items-center justify-center gap-3">
               <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -50,7 +50,7 @@ export default function Home() {
               Acessar com Google
             </Link>
           </Button>
-          <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">
+          <p className="text-[10px] text-slate-300 font-bold uppercase tracking-[0.2em]">
             Uso Corporativo Interno
           </p>
         </div>

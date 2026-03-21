@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { getInitials } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
 
 interface SDRCardProps {
   name: string;
@@ -31,7 +30,7 @@ export function SDRCard({ name, avgSpin, callCount }: SDRCardProps) {
             <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">{initials}</span>
           </div>
           
-          {/* Nome com protagonismo reduzido */}
+          {/* Nome com protagonismo reduzido (cinza médio, menor e uppercase) */}
           <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest group-hover:text-slate-600 transition-colors">
             {name}
           </h3>

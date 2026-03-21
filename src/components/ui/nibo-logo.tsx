@@ -5,11 +5,11 @@ export function NiboLogo({ className }: { className?: string }) {
   return (
     <span 
       className={cn(
-        "font-headline font-bold tracking-tighter text-[#00338D] select-none",
+        "font-headline font-bold tracking-tight text-[#00338D] select-none uppercase",
         className
       )}
     >
-      NIBO
+      Análise de chamadas
     </span>
   );
 }

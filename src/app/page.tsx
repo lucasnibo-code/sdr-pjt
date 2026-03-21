@@ -10,14 +10,11 @@ export default function Home() {
       <div className="w-full max-w-sm space-y-12 text-center animate-in fade-in duration-700">
         <div className="space-y-6 flex flex-col items-center">
           <div className="flex items-center justify-center">
-            <NiboLogo className="text-5xl" />
+            <NiboLogo className="text-3xl" />
           </div>
           <div className="space-y-2">
-            <h1 className="text-xl font-headline font-bold text-slate-900 tracking-tight">
-              Análise de ligações
-            </h1>
             <p className="text-slate-400 text-sm font-light">
-              Plataforma de inteligência para gestão de performance.
+              Plataforma de inteligência para gestão de performance SDR.
             </p>
           </div>
         </div>

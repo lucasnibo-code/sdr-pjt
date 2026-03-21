@@ -39,10 +39,7 @@ export function SidebarNav() {
     <Sidebar variant="sidebar" collapsible="icon" className="border-r border-slate-100 bg-white">
       <SidebarHeader className="p-6">
         <Link href="/dashboard" className="flex items-center gap-3 text-slate-900 group">
-          <NiboLogo className="text-xl group-data-[collapsible=icon]:text-lg" />
-          <span className="font-headline font-bold text-xs text-slate-400 uppercase tracking-[0.2em] group-data-[collapsible=icon]:hidden whitespace-nowrap pt-0.5">
-            Analytics
-          </span>
+          <NiboLogo className="text-sm group-data-[collapsible=icon]:hidden" />
         </Link>
       </SidebarHeader>
       <SidebarContent className="px-3">

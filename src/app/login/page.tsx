@@ -20,8 +20,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-white p-4">
       <div className="w-full max-w-sm space-y-8 animate-in fade-in duration-700">
         <div className="text-center space-y-2 flex flex-col items-center">
-          <NiboLogo className="text-4xl" />
-          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.2em]">Análise de ligações</p>
+          <NiboLogo className="text-2xl" />
         </div>
 
         <Card className="border-slate-100 shadow-none">
@@ -33,7 +32,7 @@ export default function LoginPage() {
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="email" className="text-[10px] font-bold uppercase text-slate-400">E-mail</Label>
-                <Input id="email" type="email" placeholder="nome@nibo.com.br" className="border-slate-100 h-9 text-xs" />
+                <Input id="email" type="email" placeholder="nome@empresa.com.br" className="border-slate-100 h-9 text-xs" />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="password" className="text-[10px] font-bold uppercase text-slate-400">Senha</Label>

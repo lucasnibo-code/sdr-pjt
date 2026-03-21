@@ -13,29 +13,29 @@ export default function DashboardLayout({
 
   return (
     <SidebarProvider defaultOpen={true}>
-      <div className="flex min-h-screen w-full bg-background">
+      <div className="flex min-h-screen w-full bg-[#FAFAFA]">
         <SidebarNav />
         <SidebarInset className="flex flex-col min-h-screen">
-          <header className="flex h-16 items-center justify-between border-b bg-card px-6 sticky top-0 z-10">
+          <header className="flex h-14 items-center justify-between border-b bg-white px-6 sticky top-0 z-10">
             <div className="flex items-center gap-4">
-              <SidebarTrigger />
-              <div className="h-6 w-px bg-border hidden md:block" />
-              <h2 className="text-sm font-medium text-muted-foreground hidden md:block">
-                Dashboard Overview
+              <SidebarTrigger className="h-8 w-8 text-slate-500" />
+              <div className="h-4 w-px bg-slate-200 hidden md:block" />
+              <h2 className="text-xs font-medium text-slate-400 uppercase tracking-wider hidden md:block">
+                SDR Management System
               </h2>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium">SDR Manager</p>
-                <p className="text-xs text-muted-foreground">Admin Account</p>
+                <p className="text-xs font-semibold text-slate-900 leading-none">Admin</p>
+                <p className="text-[10px] text-slate-400 mt-1">SDR Manager</p>
               </div>
-              <Avatar className="h-9 w-9 border border-border">
+              <Avatar className="h-8 w-8 border border-slate-100">
                 <AvatarImage src={userAvatar?.imageUrl} />
                 <AvatarFallback>AD</AvatarFallback>
               </Avatar>
             </div>
           </header>
-          <main className="flex-1 p-6 overflow-auto">
+          <main className="flex-1 p-8 overflow-auto max-w-[1400px] mx-auto w-full">
             {children}
           </main>
         </SidebarInset>

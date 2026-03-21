@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -6,7 +7,6 @@ import {
   LayoutDashboard, 
   PhoneCall, 
   UploadCloud, 
-  Settings, 
   LogOut,
   Mic2,
   Users,
@@ -22,7 +22,6 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarGroup,
-  SidebarGroupLabel,
   SidebarGroupContent,
 } from '@/components/ui/sidebar';
 
@@ -30,36 +29,45 @@ export function SidebarNav() {
   const pathname = usePathname();
 
   const menuItems = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Visão Geral', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Equipes', href: '/dashboard/teams', icon: Users },
-    { name: 'Ranking SDR', href: '/dashboard/sdrs', icon: Trophy },
-    { name: 'Todas as Calls', href: '/dashboard/calls', icon: PhoneCall },
-    { name: 'Novo Upload', href: '/dashboard/upload', icon: UploadCloud },
+    { name: 'Ranking', href: '/dashboard/sdrs', icon: Trophy },
+    { name: 'Chamadas', href: '/dashboard/calls', icon: PhoneCall },
+    { name: 'Upload', href: '/dashboard/upload', icon: UploadCloud },
   ];
 
   return (
-    <Sidebar variant="sidebar" collapsible="icon" className="border-r border-border bg-card">
-      <SidebarHeader className="p-4">
-        <div className="flex items-center gap-2 font-headline text-primary font-bold">
-          <Mic2 className="w-6 h-6 shrink-0" />
-          <span className="group-data-[collapsible=icon]:hidden">VoiceInsights</span>
-        </div>
+    <Sidebar variant="sidebar" collapsible="icon" className="border-r border-slate-100 bg-white">
+      <SidebarHeader className="p-6">
+        <Link href="/dashboard" className="flex items-center gap-3 text-slate-900">
+          <div className="p-1.5 bg-slate-900 rounded-lg text-white">
+            <Mic2 className="w-4 h-4 shrink-0" />
+          </div>
+          <span className="font-headline font-bold text-sm tracking-tight group-data-[collapsible=icon]:hidden">
+            VoiceInsights
+          </span>
+        </Link>
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="px-3">
         <SidebarGroup>
-          <SidebarGroupLabel>Menu Principal</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-1">
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.name}>
                   <SidebarMenuButton 
                     asChild 
                     isActive={pathname === item.href}
                     tooltip={item.name}
+                    className={cn(
+                      "transition-all duration-200 rounded-lg h-9 px-3",
+                      pathname === item.href 
+                        ? "bg-slate-50 text-slate-900 font-medium" 
+                        : "text-slate-500 hover:text-slate-900 hover:bg-slate-50/50"
+                    )}
                   >
                     <Link href={item.href}>
-                      <item.icon className="w-4 h-4" />
-                      <span>{item.name}</span>
+                      <item.icon className={cn("w-4 h-4", pathname === item.href ? "text-slate-900" : "text-slate-400")} />
+                      <span className="text-sm">{item.name}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -68,21 +76,13 @@ export function SidebarNav() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="p-4 border-t">
+      <SidebarFooter className="p-6 border-t border-slate-50">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Configurações">
-              <Link href="/dashboard/settings">
-                <Settings className="w-4 h-4" />
-                <span>Configurações</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild className="text-destructive hover:text-destructive" tooltip="Sair">
+            <SidebarMenuButton asChild className="text-slate-400 hover:text-red-500 transition-colors" tooltip="Sair">
               <Link href="/">
                 <LogOut className="w-4 h-4" />
-                <span>Sair</span>
+                <span className="text-sm">Sair</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

@@ -1,5 +1,5 @@
+
 import Link from 'next/link';
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ChevronRight, Clock, CheckCircle2, AlertCircle, XCircle } from 'lucide-react';
 import type { SDRCall, StatusFinal } from '@/types';
@@ -12,10 +12,10 @@ interface CallCardProps {
 export function CallCard({ call }: CallCardProps) {
   const getStatusConfig = (status: StatusFinal) => {
     switch (status) {
-      case 'APROVADO': return { icon: <CheckCircle2 className="w-3 h-3" />, color: "bg-green-100 text-green-700 border-green-200" };
-      case 'ATENCAO': return { icon: <AlertCircle className="w-3 h-3" />, color: "bg-yellow-100 text-yellow-700 border-yellow-200" };
-      case 'REPROVADO': return { icon: <XCircle className="w-3 h-3" />, color: "bg-red-100 text-red-700 border-red-200" };
-      default: return { icon: null, color: "bg-gray-100 text-gray-700 border-gray-200" };
+      case 'APROVADO': return { icon: <CheckCircle2 className="w-3 h-3" />, color: "bg-emerald-50 text-emerald-700 border-emerald-100" };
+      case 'ATENCAO': return { icon: <AlertCircle className="w-3 h-3" />, color: "bg-amber-50 text-amber-700 border-amber-100" };
+      case 'REPROVADO': return { icon: <XCircle className="w-3 h-3" />, color: "bg-rose-50 text-rose-700 border-rose-100" };
+      default: return { icon: null, color: "bg-slate-50 text-slate-700 border-slate-100" };
     }
   };
 
@@ -23,30 +23,28 @@ export function CallCard({ call }: CallCardProps) {
 
   return (
     <Link href={`/dashboard/calls/${call.id}`}>
-      <Card className="hover:bg-accent/5 transition-colors group cursor-pointer border-border/50">
-        <CardContent className="p-4 flex items-center justify-between">
-          <div className="space-y-1">
-            <h4 className="font-semibold text-sm group-hover:text-primary transition-colors">{call.title}</h4>
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                {(call.durationMs / 60000).toFixed(1)} min
-              </span>
-              <span>•</span>
-              <span>{new Date(call.analyzedAt || '').toLocaleDateString('pt-BR')}</span>
+      <div className="group bg-white border border-slate-100 p-5 rounded-xl flex items-center justify-between hover:border-slate-300 transition-all cursor-pointer">
+        <div className="space-y-2">
+          <h4 className="font-semibold text-sm text-slate-900 group-hover:text-slate-900 transition-colors">{call.title}</h4>
+          <div className="flex items-center gap-3 text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+            <span className="flex items-center gap-1.5">
+              <Clock className="w-3 h-3" />
+              {(call.durationMs / 60000).toFixed(1)} min
+            </span>
+            <span className="w-1 h-1 bg-slate-200 rounded-full" />
+            <span>{new Date(call.analyzedAt || '').toLocaleDateString('pt-BR')}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-6">
+          <div className="text-right space-y-1">
+            <div className="text-xl font-bold text-slate-900">{call.nota_spin}</div>
+            <div className={cn("text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded border inline-flex items-center gap-1", status.color)}>
+              {status.icon} {call.status_final}
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <div className="text-lg font-bold text-primary">{call.nota_spin}</div>
-              <Badge variant="outline" className={cn("text-[10px] h-5 px-1.5", status.color)}>
-                {status.icon} <span className="ml-1">{call.status_final}</span>
-              </Badge>
-            </div>
-            <ChevronRight className="w-4 h-4 text-muted-foreground" />
-          </div>
-        </CardContent>
-      </Card>
+          <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-900 group-hover:translate-x-1 transition-all" />
+        </div>
+      </div>
     </Link>
   );
 }

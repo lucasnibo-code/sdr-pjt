@@ -43,3 +43,5 @@ next-env.d.ts
 # firebase
 firebase-debug.log
 firestore-debug.log
+#back
+NEXT_PUBLIC_API_BASE_URL=https://porto-58em.onrender.com

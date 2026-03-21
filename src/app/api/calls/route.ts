@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    const response = await fetch('https://lasonya-snooty-bettina.ngrok-free.dev/api/calls?limit=100', {
+    const response = await fetch(`${process.env.API_BASE_URL}/api/calls?limit=100`, {
       headers: {
         'ngrok-skip-browser-warning': 'true',
         'Content-Type': 'application/json',

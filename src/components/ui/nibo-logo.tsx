@@ -8,6 +8,7 @@ export function NiboLogo({ className }: { className?: string }) {
       xmlns="http://www.w3.org/2000/svg" 
       className={className}
       preserveAspectRatio="xMidYMid meet"
+      style={{ objectFit: 'contain' }}
     >
       <circle cx="100" cy="55" r="30" fill="#00338D"/>
       <circle cx="55" cy="145" r="30" fill="#00338D"/>

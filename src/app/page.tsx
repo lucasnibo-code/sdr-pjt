@@ -9,8 +9,8 @@ export default function Home() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-white p-6">
       <div className="w-full max-w-sm space-y-12 text-center animate-in fade-in duration-700">
         <div className="space-y-6 flex flex-col items-center">
-          <div className="bg-white p-2 flex items-center justify-center">
-            <NiboLogo className="w-20 h-20" />
+          <div className="bg-white p-2 flex items-center justify-center w-24 h-24">
+            <NiboLogo className="max-w-full max-h-full w-auto h-auto" />
           </div>
           <div className="space-y-2">
             <h1 className="text-2xl font-headline font-bold text-slate-900 tracking-tight">

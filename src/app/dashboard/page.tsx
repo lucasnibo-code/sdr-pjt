@@ -205,7 +205,7 @@ export default function DashboardPage() {
           ) : (
             <div className="grid gap-3">
               {filteredCalls.map(call => (
-                <CallCard key={call.id} call={call} />
+  <CallCard key={call.callId} call={call} />
               ))}
             </div>
           )}

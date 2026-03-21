@@ -19,9 +19,9 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-white p-4">
       <div className="w-full max-w-md space-y-8 animate-in fade-in duration-700">
-        <div className="text-center space-y-4">
-          <div className="flex justify-center bg-white p-4 rounded-full inline-block">
-            <NiboLogo className="h-16 w-auto" />
+        <div className="text-center space-y-4 flex flex-col items-center">
+          <div className="bg-white p-2">
+            <NiboLogo className="w-16 h-16" />
           </div>
           <p className="text-slate-400 text-sm">Análise de ligações</p>
         </div>

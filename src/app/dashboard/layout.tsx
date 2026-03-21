@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from 'react';
@@ -44,7 +43,7 @@ export default function DashboardLayout({
               <SidebarTrigger className="h-8 w-8 text-slate-300 hover:text-slate-900 transition-colors" />
               <div className="h-4 w-px bg-slate-100 hidden md:block" />
               <h2 className="text-[9px] font-bold text-slate-300 uppercase tracking-[0.2em] hidden md:block">
-                V1 Reader Edition
+                Análise de ligações
               </h2>
             </div>
             <div className="flex items-center gap-3">

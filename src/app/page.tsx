@@ -8,9 +8,9 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-white p-6">
       <div className="w-full max-w-sm space-y-12 text-center animate-in fade-in duration-700">
-        <div className="space-y-6">
-          <div className="flex justify-center bg-white p-4 rounded-full">
-            <NiboLogo className="h-24 w-auto" />
+        <div className="space-y-6 flex flex-col items-center">
+          <div className="bg-white p-2 flex items-center justify-center">
+            <NiboLogo className="w-20 h-20" />
           </div>
           <div className="space-y-2">
             <h1 className="text-2xl font-headline font-bold text-slate-900 tracking-tight">

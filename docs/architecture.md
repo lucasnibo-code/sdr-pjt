@@ -1,31 +1,42 @@
-# Arquitetura do Projeto - V1
+# Arquitetura do Projeto - V1 (Escopo Reduzido)
 
-Este documento define as regras de arquitetura para a versão 1.0 da plataforma SDR VoiceInsights.
+Este documento define as regras de arquitetura e o escopo oficial para a versão 1.0 da plataforma SDR VoiceInsights.
 
-## Fluxo de Dados
+## 1. Fluxo de Dados
 **Frontend (Client)** -> **API (Backend)** -> **Firestore**
 
-O frontend nunca deve acessar o banco de dados diretamente.
+O frontend nunca deve acessar o banco de dados diretamente. Toda comunicação deve ser feita via endpoints de API.
 
-## Camadas e Responsabilidades
+## 2. Camadas e Responsabilidades
 
-### 1. Frontend (src/app/...)
-- Interface do Usuário (React components).
-- Gerenciamento de estado de UI.
-- Chamadas de API via fetch para o diretório `/api`.
-- **Proibido**: Importar SDK de Firestore no lado do cliente.
+### Frontend (src/app/...)
+- Interface do Usuário (React/Tailwind/ShadCN).
+- Consumo de API via `fetch`.
+- **Proibido**: Importar SDK de Firestore ou Firebase Auth no lado do cliente para operações de banco.
 
-### 2. Backend (src/app/api/...)
+### Backend (src/app/api/...)
 - Endpoints que servem o frontend.
-- Lógica de negócio e processamento de dados.
 - Conexão exclusiva com o Firestore.
-- Segurança e validação de requisições.
+- Segurança e validação.
 
-### 3. Banco de Dados (Firestore)
-- Persistência de documentos de chamadas, equipes e SDRs.
-- Garantia de integridade dos dados.
+### Banco de Dados (Firestore)
+- Persistência dos documentos de chamadas seguindo o modelo `SDRCall`.
 
-## Modelo de Dados (SDRCall)
+## 3. Escopo Oficial V1 (O que entra)
+O foco da V1 é ser um **Visualizador de Análises**.
+
+1. **Login**: Tela de acesso simplificada.
+2. **Lista de Chamadas**: Listagem simples com busca básica, status e nota.
+3. **Detalhe da Chamada**: Exibição completa dos insights gerados pela IA (Resumo, Alertas, Pontos Fortes, etc).
+
+## 4. Fora de Escopo V1 (Pausado)
+- Dashboards com métricas agregadas e gráficos.
+- Rankings de SDRs.
+- Agrupamento e telas de Equipes.
+- Exportação de dados (CSV/PDF).
+- Filtros avançados e comparativos.
+
+## 5. Modelo de Dados (SDRCall)
 ```typescript
 {
   id: string

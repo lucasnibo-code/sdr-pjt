@@ -5,16 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Mic2, Github } from 'lucide-react';
+import { NiboLogo } from '@/components/ui/nibo-logo';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 
 export default function LoginPage() {
   const router = useRouter();
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulação de autenticação V1
     localStorage.setItem('auth_v1', 'true');
     router.push('/dashboard');
   };
@@ -22,12 +20,11 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md space-y-8 animate-in fade-in duration-700">
-        <div className="text-center space-y-2">
-          <div className="flex justify-center items-center gap-2 text-slate-900 font-headline text-3xl font-bold">
-            <Mic2 className="w-8 h-8" />
-            <span>SDR VoiceInsights</span>
+        <div className="text-center space-y-4">
+          <div className="flex justify-center">
+            <NiboLogo className="h-12 w-auto" />
           </div>
-          <p className="text-slate-400 text-sm">Entre para acessar as análises de calls.</p>
+          <p className="text-slate-400 text-sm">Análise de ligações</p>
         </div>
 
         <Card className="border-slate-100 shadow-none">

@@ -2,7 +2,7 @@
 "use client";
 
 import { Button } from '@/components/ui/button';
-import { Mic2 } from 'lucide-react';
+import { NiboLogo } from '@/components/ui/nibo-logo';
 import Link from 'next/link';
 
 export default function Home() {
@@ -11,13 +11,11 @@ export default function Home() {
       <div className="w-full max-w-sm space-y-12 text-center animate-in fade-in duration-700">
         <div className="space-y-6">
           <div className="flex justify-center">
-            <div className="p-4 rounded-full bg-slate-50 border border-slate-100">
-              <Mic2 className="w-8 h-8 text-slate-900" />
-            </div>
+            <NiboLogo className="h-16 w-auto" />
           </div>
           <div className="space-y-2">
             <h1 className="text-2xl font-headline font-bold text-slate-900 tracking-tight">
-              Avaliação SDR's
+              Análise de ligações
             </h1>
             <p className="text-slate-500 text-sm font-light">
               Plataforma de inteligência para gestão de performance.

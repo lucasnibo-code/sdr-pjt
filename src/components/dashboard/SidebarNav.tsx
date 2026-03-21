@@ -6,10 +6,10 @@ import { usePathname, useRouter } from 'next/navigation';
 import { 
   PhoneCall, 
   UploadCloud, 
-  LogOut,
-  Mic2
+  LogOut
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { NiboLogo } from '@/components/ui/nibo-logo';
 import {
   Sidebar,
   SidebarContent,
@@ -39,12 +39,10 @@ export function SidebarNav() {
   return (
     <Sidebar variant="sidebar" collapsible="icon" className="border-r border-slate-100 bg-white">
       <SidebarHeader className="p-6">
-        <Link href="/dashboard" className="flex items-center gap-3 text-slate-900">
-          <div className="p-1.5 bg-slate-900 rounded-lg text-white">
-            <Mic2 className="w-4 h-4 shrink-0" />
-          </div>
-          <span className="font-headline font-bold text-sm tracking-tight group-data-[collapsible=icon]:hidden">
-            VoiceInsights
+        <Link href="/dashboard" className="flex items-center gap-3 text-slate-900 group">
+          <NiboLogo className="h-6 w-auto shrink-0" />
+          <span className="font-headline font-bold text-sm tracking-tight group-data-[collapsible=icon]:hidden whitespace-nowrap">
+            Análise de ligações
           </span>
         </Link>
       </SidebarHeader>

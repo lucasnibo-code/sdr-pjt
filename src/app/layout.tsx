@@ -3,8 +3,8 @@ import type {Metadata} from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'SDR VoiceInsights | AI Call Evaluation',
-  description: 'Analyze, transcribe, and score SDR calls with AI-powered insights.',
+  title: 'Nibo | Análise de Ligações',
+  description: 'Plataforma de inteligência para análise e avaliação de chamadas.',
 };
 
 export default function RootLayout({

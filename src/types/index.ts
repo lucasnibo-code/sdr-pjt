@@ -1,5 +1,5 @@
-
 export type StatusFinal = "APROVADO" | "ATENCAO" | "REPROVADO" | "NAO_IDENTIFICADO";
+export type CallSource = "HUBSPOT" | "MANUAL";
 
 export interface SDRCall {
   id: string;
@@ -20,6 +20,7 @@ export interface SDRCall {
   ponto_atencao: string;
   maior_dificuldade: string;
   pontos_fortes: string[];
+  source: CallSource;
 }
 
 export interface PerformanceMetric {

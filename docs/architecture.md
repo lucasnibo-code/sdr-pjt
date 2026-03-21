@@ -1,42 +1,34 @@
-# Arquitetura do Projeto - V1 (Escopo Reduzido)
+# Arquitetura e Fluxos do Projeto - V1
 
-Este documento define as regras de arquitetura e o escopo oficial para a versão 1.0 da plataforma SDR VoiceInsights.
+Este documento define as regras de arquitetura, fluxos e o modelo de dados oficial para a V1 da plataforma SDR VoiceInsights.
 
-## 1. Fluxo de Dados
+## 1. Arquitetura de Comunicação
 **Frontend (Client)** -> **API (Backend)** -> **Firestore**
 
-O frontend nunca deve acessar o banco de dados diretamente. Toda comunicação deve ser feita via endpoints de API.
+O frontend NUNCA acessa o banco de dados diretamente. Toda comunicação é feita via endpoints de API (`/api/calls`).
 
-## 2. Camadas e Responsabilidades
+## 2. Definição de Fluxos
 
-### Frontend (src/app/...)
-- Interface do Usuário (React/Tailwind/ShadCN).
-- Consumo de API via `fetch`.
-- **Proibido**: Importar SDK de Firestore ou Firebase Auth no lado do cliente para operações de banco.
+### Fluxo Principal (Automático)
+1. **Origem**: HubSpot (via Webhook).
+2. **Backend**: Recebe a notificação, baixa o áudio, executa Genkit (Transcrição + Análise).
+3. **Persistência**: Salva o objeto `SDRCall` no Firestore.
+4. **Consumo**: Frontend lista os dados via API.
 
-### Backend (src/app/api/...)
-- Endpoints que servem o frontend.
-- Conexão exclusiva com o Firestore.
-- Segurança e validação.
+### Fluxo Auxiliar (Validação/Interno)
+1. **Origem**: Upload Manual no Frontend.
+2. **Backend**: Recebe o arquivo, executa a mesma esteira de IA.
+3. **Persistência**: Salva no Firestore para comparação e ajuste de prompt.
 
-### Banco de Dados (Firestore)
-- Persistência dos documentos de chamadas seguindo o modelo `SDRCall`.
-
-## 3. Escopo Oficial V1 (O que entra)
+## 3. Escopo Oficial V1 (Recortado)
 O foco da V1 é ser um **Visualizador de Análises**.
 
-1. **Login**: Tela de acesso simplificada.
-2. **Lista de Chamadas**: Listagem simples com busca básica, status e nota.
-3. **Detalhe da Chamada**: Exibição completa dos insights gerados pela IA (Resumo, Alertas, Pontos Fortes, etc).
+1. **Login**: Acesso visual simplificado.
+2. **Lista de Chamadas**: Listagem cronológica com triagem por Status e Nota.
+3. **Detalhe da Chamada**: Exibição completa dos insights (Resumo, Alertas, Pontos Fortes, etc).
+4. **Ingestão Manual**: Tela de upload para validação técnica do algoritmo.
 
-## 4. Fora de Escopo V1 (Pausado)
-- Dashboards com métricas agregadas e gráficos.
-- Rankings de SDRs.
-- Agrupamento e telas de Equipes.
-- Exportação de dados (CSV/PDF).
-- Filtros avançados e comparativos.
-
-## 5. Modelo de Dados (SDRCall)
+## 4. Modelo de Dados (SDRCall)
 ```typescript
 {
   id: string
@@ -59,3 +51,8 @@ O foco da V1 é ser um **Visualizador de Análises**.
   pontos_fortes: string[]
 }
 ```
+
+## 5. Responsabilidades
+- **Frontend**: Exibição e Ingestão manual.
+- **Backend**: Proxy de dados, Segurança e Processamento de IA.
+- **Firestore**: Armazenamento e persistência.

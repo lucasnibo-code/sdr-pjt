@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -10,20 +9,25 @@ import {
   AlertCircle,
   XCircle,
   ShieldCheck,
-  Download
+  FileArchive,
+  Loader2
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import type { SDRCall, StatusFinal } from '@/types';
-import { cn } from '@/lib/utils';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
+import { useToast } from '@/hooks/use-toast';
 
 export default function CallsListPage() {
   const [calls, setCalls] = useState<SDRCall[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     fetch('/api/calls')
@@ -38,16 +42,47 @@ export default function CallsListPage() {
       });
   }, []);
 
+  const handleExportZip = async () => {
+    if (filteredCalls.length === 0) return;
+    
+    setIsExporting(true);
+    try {
+      const zip = new JSZip();
+      
+      filteredCalls.forEach((call) => {
+        const fileName = `${call.id || 'call'}-${call.ownerName || 'sdr'}.json`;
+        zip.file(fileName, JSON.stringify(call, null, 2));
+      });
+
+      const content = await zip.generateAsync({ type: 'blob' });
+      saveAs(content, `analise-chamadas-export-${new Date().toISOString().split('T')[0]}.zip`);
+      
+      toast({
+        title: "Exportação Concluída",
+        description: `${filteredCalls.length} chamadas foram compactadas com sucesso.`,
+      });
+    } catch (error) {
+      console.error('Erro ao exportar ZIP:', error);
+      toast({
+        variant: "destructive",
+        title: "Erro na Exportação",
+        description: "Não foi possível gerar o arquivo ZIP.",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const getStatusBadge = (status: StatusFinal) => {
     switch (status) {
       case 'APROVADO':
-        return <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100"><CheckCircle2 className="w-3 h-3 mr-1" /> Aprovado</Badge>;
+        return <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100 shadow-none"><CheckCircle2 className="w-3 h-3 mr-1" /> Aprovado</Badge>;
       case 'ATENCAO':
-        return <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-100"><AlertCircle className="w-3 h-3 mr-1" /> Atenção</Badge>;
+        return <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-100 shadow-none"><AlertCircle className="w-3 h-3 mr-1" /> Atenção</Badge>;
       case 'REPROVADO':
-        return <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100"><XCircle className="w-3 h-3 mr-1" /> Reprovado</Badge>;
+        return <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100 shadow-none"><XCircle className="w-3 h-3 mr-1" /> Reprovado</Badge>;
       default:
-        return <Badge variant="outline"><ShieldCheck className="w-3 h-3 mr-1" /> N/I</Badge>;
+        return <Badge variant="outline" className="shadow-none"><ShieldCheck className="w-3 h-3 mr-1" /> N/I</Badge>;
     }
   };
 
@@ -61,73 +96,82 @@ export default function CallsListPage() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-headline font-bold text-primary">Histórico de Chamadas</h1>
-          <p className="text-muted-foreground mt-1">Dados reais de todas as avaliações realizadas.</p>
+          <h1 className="text-2xl font-headline font-bold text-slate-900">Histórico de Chamadas</h1>
+          <p className="text-slate-400 text-sm mt-1">Dados consolidados de todas as avaliações.</p>
         </div>
-        <Button variant="outline" size="sm">
-          <Download className="w-4 h-4 mr-2" /> Exportar CSV
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="h-9 text-xs font-bold uppercase tracking-wider"
+          onClick={handleExportZip}
+          disabled={isExporting || filteredCalls.length === 0}
+        >
+          {isExporting ? (
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          ) : (
+            <FileArchive className="w-4 h-4 mr-2" />
+          )}
+          Exportar ZIP
         </Button>
       </div>
 
-      <Card>
-        <CardHeader className="pb-3">
+      <Card className="border-slate-100 shadow-none">
+        <CardHeader className="pb-4">
           <div className="flex flex-col md:flex-row md:items-center gap-4">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-300" />
               <Input 
-                className="pl-10" 
+                className="pl-10 h-9 text-sm border-slate-100 focus:border-slate-300" 
                 placeholder="Buscar por título, SDR ou time..." 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="icon">
-                <Filter className="w-4 h-4" />
-              </Button>
-            </div>
+            <Button variant="outline" size="icon" className="h-9 w-9 border-slate-100">
+              <Filter className="w-4 h-4 text-slate-400" />
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
+          <div className="rounded-xl border border-slate-100 overflow-hidden">
             <div className="relative w-full overflow-auto">
               <table className="w-full caption-bottom text-sm">
-                <thead className="[&_tr]:border-b bg-muted/30">
-                  <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Título</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">SDR / Time</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Status Final</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Nota SPIN</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Duração</th>
-                    <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground"></th>
+                <thead className="bg-slate-50/50">
+                  <tr className="border-b border-slate-100 transition-colors">
+                    <th className="h-10 px-4 text-left align-middle font-bold text-[10px] text-slate-400 uppercase tracking-widest">Título</th>
+                    <th className="h-10 px-4 text-left align-middle font-bold text-[10px] text-slate-400 uppercase tracking-widest">SDR / Time</th>
+                    <th className="h-10 px-4 text-left align-middle font-bold text-[10px] text-slate-400 uppercase tracking-widest">Status</th>
+                    <th className="h-10 px-4 text-left align-middle font-bold text-[10px] text-slate-400 uppercase tracking-widest text-center">Nota</th>
+                    <th className="h-10 px-4 text-left align-middle font-bold text-[10px] text-slate-400 uppercase tracking-widest">Duração</th>
+                    <th className="h-10 px-4 text-right align-middle font-medium text-slate-400 uppercase tracking-widest"></th>
                   </tr>
                 </thead>
                 <tbody className="[&_tr:last-child]:border-0">
                   {isLoading ? (
                     <tr>
-                      <td colSpan={6} className="h-24 text-center text-muted-foreground">Carregando chamadas...</td>
+                      <td colSpan={6} className="h-32 text-center text-slate-400 text-xs italic">Carregando chamadas...</td>
                     </tr>
                   ) : filteredCalls.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="h-24 text-center text-muted-foreground">Nenhuma chamada encontrada.</td>
+                      <td colSpan={6} className="h-32 text-center text-slate-400 text-xs italic">Nenhuma chamada encontrada.</td>
                     </tr>
                   ) : (
                     filteredCalls.map((call) => (
-                      <tr key={call.id} className="border-b transition-colors hover:bg-muted/20">
-                        <td className="p-4 align-middle font-medium">{call.title || 'Chamada sem Título'}</td>
+                      <tr key={call.id} className="border-b border-slate-50 transition-colors hover:bg-slate-50/30 group">
+                        <td className="p-4 align-middle font-semibold text-slate-900 text-xs">{call.title || 'Chamada sem Título'}</td>
                         <td className="p-4 align-middle">
                           <div className="flex flex-col">
-                            <span className="font-semibold text-xs">{call.ownerName}</span>
-                            <span className="text-[10px] text-muted-foreground">{call.teamName}</span>
+                            <span className="font-bold text-xs text-slate-700">{call.ownerName}</span>
+                            <span className="text-[10px] text-slate-400 uppercase tracking-tight">{call.teamName}</span>
                           </div>
                         </td>
                         <td className="p-4 align-middle">{getStatusBadge(call.status_final)}</td>
-                        <td className="p-4 align-middle font-bold text-primary">{call.nota_spin}</td>
-                        <td className="p-4 align-middle">{(call.durationMs / 60000).toFixed(1)} min</td>
+                        <td className="p-4 align-middle font-bold text-slate-900 text-center">{call.nota_spin.toFixed(1)}</td>
+                        <td className="p-4 align-middle text-slate-500 text-xs">{(call.durationMs / 60000).toFixed(1)} min</td>
                         <td className="p-4 align-middle text-right">
-                          <Button asChild size="sm" variant="ghost">
+                          <Button asChild size="sm" variant="ghost" className="h-8 text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-slate-900">
                             <Link href={`/dashboard/calls/${call.id}`}>
-                              Revise <ChevronRight className="w-3 h-3 ml-1" />
+                              Revisar <ChevronRight className="w-3 h-3 ml-1" />
                             </Link>
                           </Button>
                         </td>

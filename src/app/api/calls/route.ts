@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 
 export async function GET() {
@@ -8,16 +7,17 @@ export async function GET() {
         'ngrok-skip-browser-warning': 'true',
         'Content-Type': 'application/json',
       },
-      next: { revalidate: 60 } // Cache por 60 segundos
+      // Desativando cache agressivo para facilitar validação em tempo real
+      cache: 'no-store'
     });
 
     if (!response.ok) {
-      throw new Error('Falha ao buscar dados da API externa');
+      throw new Error(`External API returned ${response.status}`);
     }
 
     const data = await response.json();
     
-    // A API pode retornar o array diretamente ou dentro de um objeto 'calls'
+    // Garantindo que retornamos sempre um array
     const calls = Array.isArray(data) ? data : (data.calls || []);
     
     return NextResponse.json(calls);

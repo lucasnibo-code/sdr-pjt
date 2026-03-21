@@ -32,8 +32,8 @@ export function SidebarNav() {
   };
 
   const menuItems = [
-    { name: 'Chamadas', href: '/dashboard', icon: PhoneCall },
     { name: 'SDRs', href: '/dashboard/sdrs', icon: Users },
+    { name: 'Chamadas', href: '/dashboard', icon: PhoneCall },
     { name: 'Upload Manual', href: '/dashboard/upload', icon: UploadCloud },
   ];
 

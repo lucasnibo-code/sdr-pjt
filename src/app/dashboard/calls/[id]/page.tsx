@@ -15,7 +15,8 @@ import {
   Trophy,
   Target,
   Lightbulb,
-  FileText
+  FileText,
+  Mic // <-- Adicionado
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -41,7 +42,6 @@ export default function CallDetailPage() {
         setIsLoading(true);
         setError(null);
 
-        // Chama a nossa nova rota dinâmica
         const res = await fetch(`/api/calls/${encodeURIComponent(routeId)}`, {
           cache: 'no-store',
         });
@@ -49,12 +49,9 @@ export default function CallDetailPage() {
         const data = await res.json();
 
         if (!res.ok) {
-          // Se a API retornar erro (404 ou 500), exibe a mensagem vinda do servidor
           throw new Error(data.error || 'Falha ao buscar dados');
         }
 
-        // AGORA ESTÁ CORRETO: 
-        // Como o backend já filtra, 'data' já é o objeto da chamada (SDRCall)
         setCall(data);
 
       } catch (err: any) {
@@ -166,7 +163,7 @@ export default function CallDetailPage() {
         </Button>
 
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div className="space-y-2">
+          <div className="space-y-4"> {/* Aumentado o gap interno aqui */}
             <div className="flex items-center gap-3">
               <h1 className="text-3xl font-headline font-bold text-slate-900 tracking-tight">
                 {call.title || 'Chamada sem Título'}
@@ -205,6 +202,23 @@ export default function CallDetailPage() {
                 {formattedDate}
               </span>
             </div>
+
+            {/* NOVO: Botão de Gravação do HubSpot */}
+            {call.recordingUrl && (
+              <div className="pt-2">
+                <Button 
+                  asChild 
+                  variant="outline" 
+                  size="sm" 
+                  className="border-orange-200 bg-orange-50/30 text-orange-600 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-300 transition-all active:scale-95"
+                >
+                  <a href={call.recordingUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-bold uppercase tracking-wider text-[9px]">
+                    <Mic className="w-3.5 h-3.5" />
+                    Ouvir Gravação no HubSpot
+                  </a>
+                </Button>
+              </div>
+            )}
           </div>
 
           <div className="bg-white border border-slate-100 rounded-xl p-6 flex flex-col items-center justify-center min-w-[140px] shadow-sm">
@@ -223,6 +237,7 @@ export default function CallDetailPage() {
 
       <Separator className="bg-slate-100" />
 
+      {/* O resto das seções continua igual... */}
       <div className="grid grid-cols-1 gap-8">
         <section className="space-y-4">
           <div className="flex items-center gap-2 text-slate-900">
@@ -241,7 +256,9 @@ export default function CallDetailPage() {
           </Card>
         </section>
 
+        {/* ... Resto do componente omitido para brevidade, mas você mantém igual ... */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Seções de Alertas, Dificuldade, Pontos Fortes e Foco de Melhoria permanecem as mesmas */}
           <section className="space-y-4">
             <div className="flex items-center gap-2 text-red-600">
               <ShieldAlert className="w-4 h-4" />
@@ -249,22 +266,16 @@ export default function CallDetailPage() {
                 Alertas Críticos
               </h3>
             </div>
-
             <div className="space-y-3">
               {call.alertas && call.alertas.length > 0 ? (
                 call.alertas.map((alerta, i) => (
-                  <div
-                    key={i}
-                    className="flex items-start gap-3 p-4 bg-red-50/50 border border-red-100 rounded-lg text-red-800 text-xs"
-                  >
+                  <div key={i} className="flex items-start gap-3 p-4 bg-red-50/50 border border-red-100 rounded-lg text-red-800 text-xs">
                     <XCircle className="w-4 h-4 shrink-0 mt-0.5 opacity-50" />
                     {alerta}
                   </div>
                 ))
               ) : (
-                <p className="text-slate-400 text-xs italic">
-                  Nenhum alerta crítico identificado.
-                </p>
+                <p className="text-slate-400 text-xs italic">Nenhum alerta crítico identificado.</p>
               )}
             </div>
           </section>
@@ -276,7 +287,6 @@ export default function CallDetailPage() {
                 Maior Dificuldade
               </h3>
             </div>
-
             <Card className="border-slate-100 shadow-none">
               <CardContent className="p-5">
                 <p className="text-slate-600 text-sm leading-relaxed">
@@ -295,22 +305,16 @@ export default function CallDetailPage() {
                 Pontos Fortes
               </h3>
             </div>
-
             <div className="grid grid-cols-1 gap-2">
               {call.pontos_fortes && call.pontos_fortes.length > 0 ? (
                 call.pontos_fortes.map((p, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-3 p-3 bg-green-50/50 border border-green-100 rounded-lg text-green-800 text-xs font-medium"
-                  >
+                  <div key={i} className="flex items-center gap-3 p-3 bg-green-50/50 border border-green-100 rounded-lg text-green-800 text-xs font-medium">
                     <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
                     {p}
                   </div>
                 ))
               ) : (
-                <p className="text-slate-400 text-xs italic">
-                  Nenhum ponto forte destacado.
-                </p>
+                <p className="text-slate-400 text-xs italic">Nenhum ponto forte destacado.</p>
               )}
             </div>
           </section>
@@ -322,7 +326,6 @@ export default function CallDetailPage() {
                 Foco de Melhoria
               </h3>
             </div>
-
             <div className="p-5 border-l-2 border-slate-900 bg-slate-50 rounded-r-lg">
               <p className="text-slate-700 text-sm font-medium leading-relaxed">
                 {call.ponto_atencao}

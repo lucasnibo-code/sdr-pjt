@@ -52,9 +52,17 @@ export default function DashboardPage() {
 
     try {
       console.log('[DEBUG] Buscando chamadas em /api/calls');
+
       const res = await fetch(`${API}/api/calls`, {
         credentials: 'include',
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+          Pragma: 'no-cache',
+        },
       });
+
+      console.log('[DEBUG] Status fetchCalls:', res.status);
 
       if (res.status === 401) {
         console.warn('[AUTH] Sessão expirada ou inválida ao buscar chamadas.');
@@ -80,6 +88,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const checkAuth = async () => {
       console.log('[DEBUG] Verificando autenticação...');
+
       if (!API) {
         console.error('[ERROR] API_BASE_URL ausente.');
         setError('Configuração do servidor ausente.');
@@ -91,12 +100,24 @@ export default function DashboardPage() {
       try {
         const res = await fetch(`${API}/auth/me`, {
           credentials: 'include',
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+            Pragma: 'no-cache',
+          },
         });
 
         console.log('[DEBUG] Status do checkAuth:', res.status);
 
+        if (res.status === 401) {
+          console.warn('[AUTH] Usuário não autenticado (401).');
+          router.push('/login');
+          return;
+        }
+
         if (!res.ok) {
-          console.warn('[AUTH] Usuário não autenticado.');
+          const text = await res.text();
+          console.error('[AUTH] Resposta inesperada no /auth/me:', res.status, text);
           router.push('/login');
           return;
         }

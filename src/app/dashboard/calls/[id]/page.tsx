@@ -41,31 +41,25 @@ export default function CallDetailPage() {
         setIsLoading(true);
         setError(null);
 
-        const res = await fetch('/api/calls', {
+        // Chama a nossa nova rota dinâmica
+        const res = await fetch(`/api/calls/${encodeURIComponent(routeId)}`, {
           cache: 'no-store',
         });
 
-        if (!res.ok) {
-          throw new Error('Falha ao buscar dados');
-        }
-
         const data = await res.json();
 
-        const found = data.find((c: SDRCall) => {
-          const idValue = String((c as any).id ?? '');
-          const callIdValue = String((c as any).callId ?? '');
-          return idValue === routeId || callIdValue === routeId;
-        });
-
-        if (!found) {
-          setError('Chamada não encontrada.');
-          return;
+        if (!res.ok) {
+          // Se a API retornar erro (404 ou 500), exibe a mensagem vinda do servidor
+          throw new Error(data.error || 'Falha ao buscar dados');
         }
 
-        setCall(found);
-      } catch (err) {
-        console.error(err);
-        setError('Erro ao carregar os detalhes da chamada.');
+        // AGORA ESTÁ CORRETO: 
+        // Como o backend já filtra, 'data' já é o objeto da chamada (SDRCall)
+        setCall(data);
+
+      } catch (err: any) {
+        console.error("Erro ao carregar chamada:", err);
+        setError(err.message || 'Erro ao carregar os detalhes da chamada.');
       } finally {
         setIsLoading(false);
       }

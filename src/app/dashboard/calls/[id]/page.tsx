@@ -16,7 +16,10 @@ import {
   Target,
   Lightbulb,
   FileText,
-  Mic // <-- Adicionado
+  Mic,
+  Ear,
+  HelpCircle,
+  MessageSquare
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -163,7 +166,7 @@ export default function CallDetailPage() {
         </Button>
 
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div className="space-y-4"> {/* Aumentado o gap interno aqui */}
+          <div className="space-y-4">
             <div className="flex items-center gap-3">
               <h1 className="text-3xl font-headline font-bold text-slate-900 tracking-tight">
                 {call.title || 'Chamada sem Título'}
@@ -203,7 +206,6 @@ export default function CallDetailPage() {
               </span>
             </div>
 
-            {/* NOVO: Botão de Gravação do HubSpot */}
             {call.recordingUrl && (
               <div className="pt-2">
                 <Button 
@@ -237,28 +239,69 @@ export default function CallDetailPage() {
 
       <Separator className="bg-slate-100" />
 
-      {/* O resto das seções continua igual... */}
       <div className="grid grid-cols-1 gap-8">
-        <section className="space-y-4">
-          <div className="flex items-center gap-2 text-slate-900">
-            <FileText className="w-4 h-4" />
-            <h3 className="text-sm font-bold uppercase tracking-widest">
-              Resumo da Análise
-            </h3>
-          </div>
-
-          <Card className="border-slate-100 shadow-none bg-slate-50/30">
-            <CardContent className="p-6">
-              <p className="text-slate-600 leading-relaxed text-sm italic">
-                "{call.resumo}"
-              </p>
-            </CardContent>
-          </Card>
-        </section>
-
-        {/* ... Resto do componente omitido para brevidade, mas você mantém igual ... */}
+        {/* Seção de Resumo e Escuta Lado a Lado */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Seções de Alertas, Dificuldade, Pontos Fortes e Foco de Melhoria permanecem as mesmas */}
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 text-slate-900">
+              <FileText className="w-4 h-4" />
+              <h3 className="text-sm font-bold uppercase tracking-widest">
+                Resumo da Análise
+              </h3>
+            </div>
+
+            <Card className="border-slate-100 shadow-none bg-slate-50/30 h-full">
+              <CardContent className="p-6">
+                <p className="text-slate-600 leading-relaxed text-sm italic">
+                  "{call.resumo}"
+                </p>
+              </CardContent>
+            </Card>
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 text-indigo-600">
+              <Ear className="w-4 h-4" />
+              <h3 className="text-sm font-bold uppercase tracking-widest">
+                Análise de Escuta
+              </h3>
+            </div>
+
+            <Card className="border-indigo-100 shadow-none bg-indigo-50/20 h-full">
+              <CardContent className="p-6">
+                <p className="text-slate-700 leading-relaxed text-sm">
+                  {call.analise_escuta || "Análise comportamental não disponível para esta chamada."}
+                </p>
+              </CardContent>
+            </Card>
+          </section>
+        </div>
+
+        {/* Bloco de Perguntas Sugeridas - Destaque Dark */}
+        {call.perguntas_sugeridas && call.perguntas_sugeridas.length > 0 && (
+          <section className="space-y-4 bg-slate-900 p-8 rounded-2xl text-white shadow-xl">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-amber-500 rounded-lg">
+                <HelpCircle className="w-5 h-5 text-slate-900" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold tracking-tight">Perguntas de Impacto Sugeridas</h3>
+                <p className="text-slate-400 text-xs mt-1">Utilize estas perguntas no próximo contato para aprofundar o diagnóstico</p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
+              {call.perguntas_sugeridas.map((pergunta, i) => (
+                <div key={i} className="flex gap-3 p-4 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors">
+                  <MessageSquare className="w-4 h-4 text-amber-500 shrink-0 mt-1" />
+                  <p className="text-sm font-medium text-slate-200 leading-snug">{pergunta}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <section className="space-y-4">
             <div className="flex items-center gap-2 text-red-600">
               <ShieldAlert className="w-4 h-4" />

@@ -23,4 +23,8 @@ export interface SDRCall {
   ponto_atencao: string;
   maior_dificuldade: string;
   pontos_fortes: string[];
+
+  // --- NOVOS CAMPOS GEMINI 2.5 ---
+  analise_escuta?: string;        // Avaliação do comportamento e escuta ativa
+  perguntas_sugeridas?: string[]; // Lista de perguntas de impacto para coaching
 }

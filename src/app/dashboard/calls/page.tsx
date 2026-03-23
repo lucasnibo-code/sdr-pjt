@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import type { SDRCall, StatusFinal } from '@/types';
+import type { SDRCall } from '@/types'; // Removido StatusFinal pois vamos calcular
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
@@ -73,17 +73,27 @@ export default function CallsListPage() {
     }
   };
 
-  const getStatusBadge = (status: StatusFinal) => {
-    switch (status) {
-      case 'APROVADO':
-        return <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100 shadow-none"><CheckCircle2 className="w-3 h-3 mr-1" /> Aprovado</Badge>;
-      case 'ATENCAO':
-        return <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-100 shadow-none"><AlertCircle className="w-3 h-3 mr-1" /> Atenção</Badge>;
-      case 'REPROVADO':
-        return <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100 shadow-none"><XCircle className="w-3 h-3 mr-1" /> Reprovado</Badge>;
-      default:
-        return <Badge variant="outline" className="shadow-none"><ShieldCheck className="w-3 h-3 mr-1" /> N/I</Badge>;
+  // NOVA LÓGICA DE CORES BASEADA NA NOTA
+  const getStatusBadge = (nota: number) => {
+    if (nota >= 7) {
+      return (
+        <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100 shadow-none">
+          <CheckCircle2 className="w-3 h-3 mr-1" /> Aprovado
+        </Badge>
+      );
+    } 
+    if (nota >= 5) {
+      return (
+        <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-100 shadow-none">
+          <AlertCircle className="w-3 h-3 mr-1" /> Atenção
+        </Badge>
+      );
     }
+    return (
+      <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100 shadow-none">
+        <XCircle className="w-3 h-3 mr-1" /> Reprovado
+      </Badge>
+    );
   };
 
   const filteredCalls = calls.filter(call => 
@@ -165,7 +175,8 @@ export default function CallsListPage() {
                             <span className="text-[10px] text-slate-400 uppercase tracking-tight">{call.teamName}</span>
                           </div>
                         </td>
-                        <td className="p-4 align-middle">{getStatusBadge(call.status_final)}</td>
+                        {/* AQUI PASSAMOS A NOTA PARA A FUNÇÃO */}
+                        <td className="p-4 align-middle">{getStatusBadge(call.nota_spin)}</td>
                         <td className="p-4 align-middle font-bold text-slate-900 text-center">{call.nota_spin.toFixed(1)}</td>
                         <td className="p-4 align-middle text-slate-500 text-xs">{(call.durationMs / 60000).toFixed(1)} min</td>
                         <td className="p-4 align-middle text-right">

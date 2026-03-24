@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { CallCard } from '@/components/dashboard/CallCard';
 import { SDRRanking } from '@/components/dashboard/SDRRanking';
+// 🚩 PONTO DE ALTERAÇÃO: Importando as métricas que blindamos anteriormente
 import { calculateAverageSpin, isWithinPeriod } from '@/lib/metrics';
 import type { SDRCall } from '@/types';
 
@@ -25,12 +26,14 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOrder, setSortOrder] = useState<SortOrder>('date_desc');
-  const [dateFilter, setDateFilter] = useState('current_month');
+  // 🚩 PONTO DE ALTERAÇÃO: Ajustado para 'month' para bater com o case do metrics.ts
+  const [dateFilter, setDateFilter] = useState('month');
 
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/calls');
+      // 🚩 PONTO DE ALTERAÇÃO: Cache 'no-store' para garantir que os dados limpos apareçam
+      const res = await fetch(`/api/calls?t=${Date.now()}`, { cache: 'no-store' });
       const data = await res.json();
       setCalls(Array.isArray(data) ? data : []);
     } catch (error) {
@@ -48,7 +51,7 @@ export default function DashboardPage() {
   const processedCalls = useMemo(() => {
     if (!Array.isArray(calls)) return [];
 
-    // 1. Filtro de Período (Usando a nossa função do metrics)
+    // 1. Filtro de Período
     let filtered = calls.filter(call => isWithinPeriod(call.updatedAt, dateFilter));
 
     // 2. Filtro de busca
@@ -59,21 +62,28 @@ export default function DashboardPage() {
       return name.includes(term) || title.includes(term);
     });
 
-    // 3. Ordenação
+    // 3. Ordenação robusta
     return [...filtered].sort((a, b) => {
       if (sortOrder === 'score_desc') return (b.nota_spin || 0) - (a.nota_spin || 0);
       if (sortOrder === 'score_asc') return (a.nota_spin || 0) - (b.nota_spin || 0);
-      const dateA = a.updatedAt?.seconds ? a.updatedAt.seconds * 1000 : new Date(a.updatedAt || 0).getTime();
-      const dateB = b.updatedAt?.seconds ? b.updatedAt.seconds * 1000 : new Date(b.updatedAt || 0).getTime();
+      
+      // 🚩 PONTO DE ALTERAÇÃO: Lógica de data que aceita _seconds (do script) e seconds (do SDK)
+      const dateA = a.updatedAt?._seconds || a.updatedAt?.seconds || (typeof a.updatedAt === 'number' ? a.updatedAt / 1000 : 0);
+      const dateB = b.updatedAt?._seconds || b.updatedAt?.seconds || (typeof b.updatedAt === 'number' ? b.updatedAt / 1000 : 0);
+      
       return dateB - dateA;
     });
   }, [calls, searchTerm, sortOrder, dateFilter]);
 
-  // MÉTRICAS GLOBAIS: Usamos apenas o que foi analisado (DONE) para a média
+  // 🚩 MÉTRICAS GLOBAIS: Agora filtradas pela regra de ouro (DONE)
   const analyzedCalls = processedCalls.filter(c => c.processingStatus === "DONE");
+  
+  // calculateAverageSpin já faz o filtro por DONE internamente agora
   const avgSpin = calculateAverageSpin(processedCalls);
-  const totalCallsCount = processedCalls.length; // Volume total (Audit)
-  const activeSDRs = new Set(processedCalls.map(c => c.ownerName).filter(Boolean)).size;
+  
+  const totalCallsCount = processedCalls.length; 
+  // 🚩 PONTO DE ALTERAÇÃO: SDRs Ativos agora conta apenas quem tem ao menos uma análise DONE no período
+  const activeSDRs = new Set(analyzedCalls.map(c => c.ownerName).filter(Boolean)).size;
 
   if (isLoading) {
     return (
@@ -118,6 +128,7 @@ export default function DashboardPage() {
             <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl group-hover:scale-110 transition-transform"><TrendingUp className="w-6 h-6" /></div>
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Média SPIN (Real)</p>
+              {/* 🚩 PONTO DE ALTERAÇÃO: Média agora mostra "--" se não houver dados DONE */}
               <p className="text-3xl font-headline font-bold text-slate-900">{avgSpin > 0 ? avgSpin.toFixed(1) : "--"}</p>
             </div>
           </CardContent>
@@ -129,6 +140,7 @@ export default function DashboardPage() {
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tentativas Registradas</p>
               <p className="text-3xl font-headline font-bold text-slate-900">{totalCallsCount}</p>
+              {/* 🚩 PONTO DE ALTERAÇÃO: Badge de sucesso para destacar o volume real analisado */}
               <p className="text-[9px] text-emerald-500 font-bold uppercase mt-1">{analyzedCalls.length} reuniões analisadas</p>
             </div>
           </CardContent>
@@ -138,7 +150,7 @@ export default function DashboardPage() {
           <CardContent className="p-6 flex items-center gap-4">
             <div className="p-3 bg-amber-50 text-amber-600 rounded-xl"><Users className="w-6 h-6" /></div>
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">SDRs Ativos</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">SDRs com Nota</p>
               <p className="text-3xl font-headline font-bold text-slate-900">{activeSDRs}</p>
             </div>
           </CardContent>
@@ -148,6 +160,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <div className="space-y-4">
           <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Ranking do Período</h3>
+          {/* O Ranking agora vai refletir a limpeza que fizemos */}
           <SDRRanking calls={processedCalls} />
         </div>
 

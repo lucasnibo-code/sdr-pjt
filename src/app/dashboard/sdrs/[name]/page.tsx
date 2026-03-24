@@ -32,7 +32,10 @@ export default function SDRDetailPage() {
   const [sortOrder, setSortOrder] = useState<SortOrder>('date_desc');
 
   useEffect(() => {
-    fetch('/api/calls')
+    // 🚩 PONTO DE ALTERAÇÃO: Adicionado timestamp (?t=...) e cache: 'no-store'
+    // Isso força o navegador a buscar os dados novos do Firebase (como o 6.0 do Gregorio)
+    // ignorando qualquer "memória" antiga que o site tenha guardado.
+    fetch(`/api/calls?t=${Date.now()}`, { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
         const sdrCalls = (data as SDRCall[]).filter((c) => c.ownerName === decodedName);
@@ -47,11 +50,14 @@ export default function SDRDetailPage() {
     
     // 1. Filtro de Tempo
     const timeFiltered = allCalls.filter(call => {
-      // Ajuste para lidar com diferentes formatos de data (Firestore Timestamp ou String)
-      const dateValue = call.updatedAt?.seconds ? call.updatedAt.seconds * 1000 : call.updatedAt;
-      if (!dateValue || timeFilter === 'all') return true;
+      // 🚩 PONTO DE ALTERAÇÃO: Lógica robusta para ler datas.
+      // O Firebase Admin (nosso script) gera "_seconds", o Firebase Web gera "seconds".
+      // Aqui garantimos que o filtro de tempo entenda os dois.
+      const seconds = call.updatedAt?._seconds || call.updatedAt?.seconds || (typeof call.updatedAt === 'number' ? call.updatedAt / 1000 : null);
       
-      const callDate = new Date(dateValue);
+      if (!seconds || timeFilter === 'all') return true;
+      
+      const callDate = new Date(seconds * 1000);
       const diffDays = Math.ceil(Math.abs(now.getTime() - callDate.getTime()) / (1000 * 60 * 60 * 24));
       
       if (timeFilter === 'today') return diffDays <= 1;
@@ -60,24 +66,29 @@ export default function SDRDetailPage() {
       return true;
     });
 
-    // 2. SEPARAÇÃO CORRETA (Ajuste aqui!)
-    // Tentativas: Volume total bruto
+    // 🚩 PONTO DE ALTERAÇÃO: Agora separamos por Status, não por tempo de duração.
+    // "Tentativas" = Tudo o que caiu no filtro de tempo (inclusive os "lixos" que limpamos).
     const attempts = timeFiltered;
     
-    // Conectadas: APENAS o que foi validado pela IA (Status DONE)
+    // "Conectadas/Válidas" = APENAS o que marcamos como DONE no banco de dados.
     const validCalls = timeFiltered.filter(c => c.processingStatus === 'DONE');
 
     // 3. Ordenação do histórico
     const displayCalls = [...validCalls].sort((a, b) => {
       if (sortOrder === 'score_desc') return (b.nota_spin || 0) - (a.nota_spin || 0);
       if (sortOrder === 'score_asc') return (a.nota_spin || 0) - (b.nota_spin || 0);
-      return new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime();
+      
+      // Ordenação por data (Recente primeiro)
+      const secA = a.updatedAt?._seconds || a.updatedAt?.seconds || 0;
+      const secB = b.updatedAt?._seconds || b.updatedAt?.seconds || 0;
+      return secB - secA;
     });
 
     return {
       attemptsCount: attempts.length,
       connectedCount: validCalls.length,
       displayCalls,
+      // 🚩 PONTO DE ALTERAÇÃO: A média agora é calculada apenas sobre as chamadas DONE.
       avgSpin: calculateAverageSpin(validCalls) 
     };
   }, [allCalls, timeFilter, sortOrder]);
@@ -117,7 +128,9 @@ export default function SDRDetailPage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {/* Média Nota - Agora com verificação de nulo */}
+            {/* 🚩 PONTO DE ALTERAÇÃO: Verificação da Média.
+                Se a média for 0 (porque não há chamadas DONE), mostramos "--".
+                Isso remove o "0.0" injusto da tela. */}
             <div className="bg-white border border-slate-100 rounded-xl p-4 flex flex-col items-center min-w-[130px] shadow-sm">
               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
                 <TrendingUp className="w-3 h-3 text-amber-500" /> Média Nota

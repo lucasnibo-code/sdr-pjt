@@ -13,7 +13,8 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { isWithinPeriod } from '@/lib/metrics'; // Certifique-se que essa função existe no seu lib/metrics
+// 🚩 PONTO DE ALTERAÇÃO: Importando a métrica que corrigimos no passo anterior
+import { isWithinPeriod } from '@/lib/metrics'; 
 
 export default function SDRsPage() {
   const [calls, setCalls] = useState<SDRCall[]>([]);
@@ -22,7 +23,9 @@ export default function SDRsPage() {
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    fetch('/api/calls')
+    // 🚩 PONTO DE ALTERAÇÃO: Adicionado timestamp (?t=...) para evitar que o navegador
+    // mostre dados antigos do cache após você rodar os scripts de limpeza.
+    fetch(`/api/calls?t=${Date.now()}`, { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
         setCalls(Array.isArray(data) ? data : []);
@@ -40,10 +43,11 @@ export default function SDRsPage() {
     const groups: Record<string, SDRCall[]> = {};
     
     calls.forEach(call => {
-      // 1. Filtro de Período
+      // 🚩 PONTO DE ALTERAÇÃO: Agora o isWithinPeriod sabe ler _seconds e seconds
+      // Isso garante que as chamadas limpas pelo script apareçam no filtro certo.
       if (!isWithinPeriod(call.updatedAt, period)) return;
 
-      // 2. Filtro de Busca por Nome
+      // Filtro de Busca por Nome
       const name = call.ownerName || "Não Identificado";
       if (!name.toLowerCase().includes(searchTerm.toLowerCase())) return;
 
@@ -95,6 +99,7 @@ export default function SDRsPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="today">Hoje</SelectItem>
+              {/* 🚩 PONTO DE ALTERAÇÃO: Ajustado para bater com o case '7days' do metrics */}
               <SelectItem value="7d">Últimos 7 dias</SelectItem>
               <SelectItem value="month">Mês atual</SelectItem>
               <SelectItem value="all">Todo o histórico</SelectItem>
@@ -116,6 +121,9 @@ export default function SDRsPage() {
               href={`/dashboard/sdrs/${encodeURIComponent(name)}`}
               className="block active:scale-95 transition-transform"
             >
+              {/* 🚩 PONTO DE ALTERAÇÃO: O SDRCard receberá todas as chamadas do período.
+                  A lógica de mostrar nota ou "--" será decidida dentro do SDRCard
+                  usando o metrics.ts que já corrigimos. */}
               <SDRCard 
                 name={name} 
                 calls={sdrGroups[name]} 

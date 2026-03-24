@@ -2,24 +2,20 @@ import { SDRCall, StatusFinal } from '@/types';
 
 /**
  * 🛠️ FILTRO DE SEGURANÇA FLEXÍVEL
- * Antes só aceitava "DONE". Agora, se a IA deu uma nota (nota_spin > 0),
- * nós consideramos a chamada válida para a média, independente do status.
+ * Aceita DONE ou qualquer chamada que a IA conseguiu dar nota.
  */
 const filterValidCalls = (calls: SDRCall[]) => 
   calls.filter(c => c.processingStatus === "DONE" || (Number(c.nota_spin) > 0));
 
 /**
  * 📈 CÁLCULO DE MÉDIA SPIN
- * Agora usa o filtro flexível e garante que notas em formato de texto viraram números.
  */
 export function calculateAverageSpin(calls: SDRCall[]): number {
   const analyzed = filterValidCalls(calls);
   
-  // Se não tem chamada validada, retornamos 0
   if (analyzed.length === 0) return 0;
 
-  // 🚩 PONTO DE ALTERAÇÃO: Number() garante que "6" vira 6 para a conta não quebrar
-  const total = analyzed.reduce((acc, call) => acc + (Number(call.nota_spin) || 0), 0);
+  const total = analyzed.reduce((acc, call) => acc + (Number(call.nota_spin || 0)), 0);
   
   return parseFloat((total / analyzed.length).toFixed(1));
 }
@@ -44,9 +40,11 @@ export function getStatusCounts(calls: SDRCall[]) {
 
 /**
  * 🏆 RANKING DE SDRS
- * Agora o ranking também considera o Gregorio Goulart para a média da Ana Julia.
+ * Corrigido para não quebrar (adicionado return acc) e contar tentativas corretamente.
  */
 export function getSDRRanking(calls: SDRCall[]) {
+  if (!calls || !Array.isArray(calls)) return [];
+  
   const grouped = calls.reduce((acc, call) => {
     const name = call.ownerName || "Não Identificado";
     
@@ -54,36 +52,41 @@ export function getSDRRanking(calls: SDRCall[]) {
       acc[name] = { name, calls: [], totalSpin: 0, doneCount: 0 };
     }
 
+    // Registra a chamada no grupo do SDR (independente de ser nota ou tentativa)
     acc[name].calls.push(call);
 
-    // 🚩 PONTO DE ALTERAÇÃO: A lógica do ranking agora bate com a lógica da média
+    // Lógica para média: DONE ou se houver nota real
     const isAnalyzed = call.processingStatus === "DONE" || (Number(call.nota_spin) > 0);
 
     if (isAnalyzed) {
-      acc[name].totalSpin += (Number(call.nota_spin) || 0);
+      acc[name].totalSpin += Number(call.nota_spin || 0);
       acc[name].doneCount += 1;
     }
-    return acc;
+
+    // 🚩 MARCAÇÃO: O retorno do acumulador é obrigatório para não quebrar a função
+    return acc; 
   }, {} as Record<string, { name: string; calls: SDRCall[]; totalSpin: number; doneCount: number }>);
 
   return Object.values(grouped)
     .map(sdr => ({
       name: sdr.name,
       avgSpin: sdr.doneCount > 0 ? parseFloat((sdr.totalSpin / sdr.doneCount).toFixed(1)) : 0,
-      count: sdr.calls.length, // Tentativas Totais
-      analyzedCount: sdr.doneCount // Chamadas que entraram na média
+      count: sdr.calls.length, // Agora vai mostrar as 5 tentativas da Amaranta
+      analyzedCount: sdr.doneCount 
     }))
     .sort((a, b) => b.avgSpin - a.avgSpin);
 }
 
 /**
  * 📅 VALIDAÇÃO DE PERÍODO (FILTROS)
- * Mantendo o suporte para os formatos de data do Firebase (_seconds e seconds).
+ * Suporte robusto para datas de tentativas (SKIPPED_FOR_AUDIT) e analisadas.
  */
 export function isWithinPeriod(dateInput: any, period: string): boolean {
   if (!dateInput || period === 'all') return true;
 
-  const seconds = dateInput?._seconds || dateInput?.seconds || (typeof dateInput === 'number' ? dateInput / 1000 : null);
+  // Tenta capturar segundos de várias estruturas do Firebase
+  const rawDate = dateInput?._seconds || dateInput?.seconds || dateInput;
+  const seconds = typeof rawDate === 'number' ? rawDate : (rawDate?._seconds || rawDate?.seconds || null);
   
   const date = seconds ? new Date(seconds * 1000) : new Date(dateInput);
   

@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+export const dynamic = 'force-dynamic';
+
+// ... resto do seu código (importações, funções GET, etc.)
 
 export async function GET() {
   try {

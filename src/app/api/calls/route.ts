@@ -12,7 +12,7 @@ export async function GET() {
     }
 
     // Busca a lista completa (limitada a 100) no seu backend do Render
-    const response = await fetch(`${baseUrl}/api/calls?limit=100`, {
+    const response = await fetch(`${baseUrl}/api/calls?limit=3000`, {
       headers: { 'Content-Type': 'application/json' },
       cache: 'no-store',
     });

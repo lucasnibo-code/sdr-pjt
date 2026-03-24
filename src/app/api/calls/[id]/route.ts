@@ -20,7 +20,7 @@ export async function GET(
     }
 
     // Busca a lista no Render para poder filtrar pelo ID
-    const response = await fetch(`${baseUrl}/api/calls?limit=100`, {
+    const response = await fetch(`${baseUrl}/api/calls?limit=3000`, {
       headers: { 'Content-Type': 'application/json' },
       cache: 'no-store',
     });

@@ -23,21 +23,17 @@ export default function Home() {
     <main className="min-h-screen flex flex-col items-center justify-center bg-white p-6 animate-in fade-in duration-1000">
       <div className="w-full max-w-sm space-y-12 text-center">
         
-        {/* ÁREA DA LOGO E TÍTULO */}
-        <div className="space-y-6 flex flex-col items-center">
-          <div className="flex items-center justify-center mb-2">
+        {/* ÁREA DA LOGO (O NiboLogo já contém o título em azul) */}
+        <div className="space-y-4 flex flex-col items-center">
+          <div className="flex items-center justify-center">
+            {/* Aumentei um pouco o tamanho aqui para ficar imponente */}
             <NiboLogo className="text-4xl" />
           </div>
 
-          <div className="space-y-2">
-            {/* TÍTULO ÚNICO CORRIGIDO */}
-            <h1 className="text-3xl font-black tracking-tighter text-[#003399] uppercase leading-none">
-              Análise de Chamadas
-            </h1>
-            <p className="text-slate-400 text-sm font-medium">
-              Inteligência Artificial para gestão de performance SDR.
-            </p>
-          </div>
+          {/* Mantemos apenas o subtítulo em cinza aqui embaixo */}
+          <p className="text-slate-400 text-sm font-medium px-4">
+            Inteligência Artificial para gestão de performance SDR.
+          </p>
         </div>
 
         {/* BOTÃO DE ACESSO ÚNICO */}
@@ -46,7 +42,6 @@ export default function Home() {
             onClick={login}
             className="w-full h-14 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl shadow-sm transition-all flex items-center justify-center gap-3 text-base font-bold"
           >
-            {/* Ícone oficial do Google */}
             <svg viewBox="0 0 24 24" width="20" height="20" xmlns="http://www.w3.org/2000/svg">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
               <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
@@ -56,9 +51,8 @@ export default function Home() {
             Acessar com Google
           </Button>
 
-          {/* RODAPÉ CORPORATIVO */}
           <div className="flex flex-col items-center gap-2 pt-4">
-            <div className="flex items-center gap-2 text-[10px] font-bold text-slate-300 uppercase tracking-[0.2em]">
+            <div className="flex items-center gap-2 text-[10px] font-bold text-slate-200 uppercase tracking-[0.2em]">
               <ShieldCheck className="w-3 h-3" />
               Uso Corporativo Interno
             </div>

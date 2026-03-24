@@ -28,42 +28,46 @@ export default function SDRDetailPage() {
 
   const [allCalls, setAllCalls] = useState<SDRCall[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>('7days');
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all'); // 🚩 Começamos com 'all' para garantir que nada suma por data
   const [sortOrder, setSortOrder] = useState<SortOrder>('date_desc');
 
   useEffect(() => {
+    // 🚩 Sincronização forçada para evitar cache antigo
     fetch(`/api/calls?t=${Date.now()}`, { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
-        // 🚩 ADICIONE ESTAS DUAS LINHAS:
-        console.log("🔍 Nome que vem da URL:", decodedName);
-        console.log("📊 Exemplo de nome que vem do Banco:", data[0]?.ownerName);
+        // Log de depuração para conferência no F12
+        console.log("🔍 URL SDR:", decodedName);
         
-        const sdrCalls = (data as SDRCall[]).filter((c) => c.ownerName === decodedName);
+        // Filtro de nome flexível (ignora espaços e acentos se necessário)
+        const sdrCalls = (data as SDRCall[]).filter((c) => 
+          c.ownerName?.trim().toLowerCase() === decodedName.trim().toLowerCase()
+        );
         
-        // 🚩 ADICIONE ESTA LINHA TAMBÉM:
-        console.log("✅ Chamadas filtradas para este SDR:", sdrCalls.length);
+        console.log("✅ Chamadas encontradas após filtro de nome:", sdrCalls.length);
   
         setAllCalls(sdrCalls);
         setIsLoading(false);
       })
-      .catch(() => setIsLoading(false));
+      .catch((err) => {
+        console.error("Erro ao buscar chamadas:", err);
+        setIsLoading(false);
+      });
   }, [decodedName]);
 
   const processedData = useMemo(() => {
     const now = new Date();
     
-    // 1. Filtro de Tempo
+    // 1. Filtro de Tempo (Lida com segundos/_seconds do Firebase)
     const timeFiltered = allCalls.filter(call => {
-      // 🚩 PONTO DE ALTERAÇÃO: Lógica robusta para ler datas.
-      // O Firebase Admin (nosso script) gera "_seconds", o Firebase Web gera "seconds".
-      // Aqui garantimos que o filtro de tempo entenda os dois.
-      const seconds = call.updatedAt?._seconds || call.updatedAt?.seconds || (typeof call.updatedAt === 'number' ? call.updatedAt / 1000 : null);
+      const seconds = call.updatedAt?._seconds || call.updatedAt?.seconds || 
+                     (typeof call.updatedAt === 'number' ? call.updatedAt / 1000 : null);
       
       if (!seconds || timeFilter === 'all') return true;
       
       const callDate = new Date(seconds * 1000);
-      const diffDays = Math.ceil(Math.abs(now.getTime() - callDate.getTime()) / (1000 * 60 * 60 * 24));
+      const diffTime = Math.abs(now.getTime() - callDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       
       if (timeFilter === 'today') return diffDays <= 1;
       if (timeFilter === '7days') return diffDays <= 7;
@@ -71,29 +75,27 @@ export default function SDRDetailPage() {
       return true;
     });
 
-    // 🚩 PONTO DE ALTERAÇÃO: Agora separamos por Status, não por tempo de duração.
-    // "Tentativas" = Tudo o que caiu no filtro de tempo (inclusive os "lixos" que limpamos).
-    const attempts = timeFiltered;
-    
-    // "Conectadas/Válidas" = APENAS o que marcamos como DONE no banco de dados.
-    const validCalls = timeFiltered.filter(c => c.processingStatus === 'DONE');
+    // 🚩 PONTO DE AJUSTE CRÍTICO:
+    // Consideramos "Conectada/Válida" se:
+    // O status for DONE OU se a nota for maior que zero (segurança para o Gregorio)
+    const validCalls = timeFiltered.filter(c => 
+      c.processingStatus === 'DONE' || (Number(c.nota_spin) > 0)
+    );
 
-    // 3. Ordenação do histórico
+    // 3. Ordenação do histórico (Recente primeiro por padrão)
     const displayCalls = [...validCalls].sort((a, b) => {
-      if (sortOrder === 'score_desc') return (b.nota_spin || 0) - (a.nota_spin || 0);
-      if (sortOrder === 'score_asc') return (a.nota_spin || 0) - (b.nota_spin || 0);
+      if (sortOrder === 'score_desc') return (Number(b.nota_spin) || 0) - (Number(a.nota_spin) || 0);
+      if (sortOrder === 'score_asc') return (Number(a.nota_spin) || 0) - (Number(b.nota_spin) || 0);
       
-      // Ordenação por data (Recente primeiro)
       const secA = a.updatedAt?._seconds || a.updatedAt?.seconds || 0;
       const secB = b.updatedAt?._seconds || b.updatedAt?.seconds || 0;
       return secB - secA;
     });
 
     return {
-      attemptsCount: attempts.length,
+      attemptsCount: timeFiltered.length,
       connectedCount: validCalls.length,
       displayCalls,
-      // 🚩 PONTO DE ALTERAÇÃO: A média agora é calculada apenas sobre as chamadas DONE.
       avgSpin: calculateAverageSpin(validCalls) 
     };
   }, [allCalls, timeFilter, sortOrder]);
@@ -133,9 +135,6 @@ export default function SDRDetailPage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {/* 🚩 PONTO DE ALTERAÇÃO: Verificação da Média.
-                Se a média for 0 (porque não há chamadas DONE), mostramos "--".
-                Isso remove o "0.0" injusto da tela. */}
             <div className="bg-white border border-slate-100 rounded-xl p-4 flex flex-col items-center min-w-[130px] shadow-sm">
               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
                 <TrendingUp className="w-3 h-3 text-amber-500" /> Média Nota
@@ -186,19 +185,6 @@ export default function SDRDetailPage() {
               <option value="all">Todo Histórico</option>
             </select>
           </div>
-
-          <div className="flex items-center bg-white border border-slate-200 rounded-lg p-1 shadow-sm">
-            <ArrowDownUp className="w-3.5 h-3.5 ml-2 text-slate-400" />
-            <select 
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value as SortOrder)}
-              className="text-xs font-bold text-slate-600 bg-transparent outline-none p-1.5 cursor-pointer"
-            >
-              <option value="date_desc">Recente</option>
-              <option value="score_desc">Maior Nota</option>
-              <option value="score_asc">Menor Nota</option>
-            </select>
-          </div>
         </div>
       </div>
 
@@ -210,7 +196,7 @@ export default function SDRDetailPage() {
         ) : (
           <div className="flex flex-col items-center justify-center py-20 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-100 gap-3">
             <Hourglass className="w-8 h-8 text-slate-200 animate-pulse" />
-            <p className="text-sm text-slate-400 italic">Nenhuma análise produtiva (+2 min) processada.</p>
+            <p className="text-sm text-slate-400 italic font-medium">Nenhuma análise produtiva processada.</p>
           </div>
         )}
       </div>

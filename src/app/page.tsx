@@ -30,6 +30,7 @@ export default function Home() {
           </div>
 
           <div className="space-y-2">
+            {/* TÍTULO ÚNICO CORRIGIDO */}
             <h1 className="text-3xl font-black tracking-tighter text-[#003399] uppercase leading-none">
               Análise de Chamadas
             </h1>

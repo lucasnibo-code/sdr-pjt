@@ -5,6 +5,7 @@ export type ProcessingStatus = 'DONE' | 'SKIPPED_FOR_AUDIT' | 'NOT_CONNECTED' | 
 export interface SDRCall {
   id: string;
   callId: string;
+  createdAt?: any; 
   title: string;
   ownerId: string | null;
   ownerName: string;

@@ -1,19 +1,74 @@
 import { SDRCall, StatusFinal } from '@/types';
 
 /**
- * 🛠️ FILTRO DE SEGURANÇA FLEXÍVEL
- * Uma chamada entra para a média se:
- * 1. O status for "DONE" (Mesmo que a nota seja 0.0)
- * 2. OU se houver uma nota maior que zero (Caso do Gregorio que estava com status bugado)
+ * 📅 VALIDAÇÃO DE PERÍODO (FILTROS)
+ * Aprimorado para ser mais robusto na interpretação de datas do Firebase
+ * e para definir corretamente o início do mês para o filtro 'month'.
  */
-const filterValidCalls = (calls: SDRCall[]) => 
-  calls.filter(c => 
-    c.processingStatus === "DONE" || 
-    (c.nota_spin !== null && c.nota_spin !== undefined && Number(c.nota_spin) > 0)
-  );
+export function isWithinPeriod(dateInput: any, period: string): boolean {
+  if (!dateInput || period === 'all') return true;
+
+  // Tenta capturar segundos de várias estruturas do Firebase (suporte para tentativas e analisadas)
+  // O backend agora injeta createdAt/updatedAt/analyzedAt como números (seconds) ou objetos Firebase Timestamp.
+  const rawDate = dateInput?._seconds || dateInput?.seconds || dateInput;
+  const seconds = typeof rawDate === 'number' ? rawDate : (rawDate?._seconds || rawDate?.seconds || null);
+  
+  const date = seconds ? new Date(seconds * 1000) : new Date(dateInput);
+  
+  if (isNaN(date.getTime())) return false;
+
+  const now = new Date();
+  // 🚩 ALTERAÇÃO: Ajuste para garantir que "today" e "7days" comecem no início do dia (00:00:00).
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+
+  switch (period) {
+    case 'today': 
+      return date >= startOfToday;
+    case '7d':
+    case '7days':
+      const sevenDaysAgo = new Date(startOfToday);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      return date >= sevenDaysAgo;
+    case 'month':
+    case '30days':
+      // 🚩 ALTERAÇÃO: Considera o mês atual inteiro, começando do primeiro dia.
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      return date >= startOfMonth;
+    default: 
+      return true;
+  }
+}
+
+/**
+ * 🛠️ FILTRO DE SEGURANÇA FLEXÍVEL PARA CÁLCULO DE MÉDIA
+ * Uma chamada entra para a média se:
+ * 1. O status for "DONE" E tiver uma nota numérica (mesmo que 0.0).
+ * 2. OU se NÃO for "SKIPPED_FOR_AUDIT", tiver uma nota numérica E essa nota for maior que zero
+ *    (Isso lida com casos legados/bugados que não tinham status "DONE" mas tinham nota > 0).
+ * Chamadas "SKIPPED_FOR_AUDIT" são explicitamente excluídas da média.
+ */
+const filterValidCalls = (calls: SDRCall[]) => calls.filter(c => {
+    const hasNumericScore = typeof c.nota_spin === 'number' && !isNaN(c.nota_spin);
+    
+    // 🚩 ALTERAÇÃO: Inclui notas 0.0 para chamadas "DONE".
+    // 🚩 EXCLUI chamadas "SKIPPED_FOR_AUDIT" da média.
+    
+    // Condição 1: Chamada está "DONE" e tem uma nota numérica (incluindo 0.0)
+    if (c.processingStatus === "DONE" && hasNumericScore) {
+        return true;
+    }
+    
+    // Condição 2: Chamada NÃO é "SKIPPED_FOR_AUDIT" e tem uma nota > 0 (para casos legados)
+    if (c.processingStatus !== "SKIPPED_FOR_AUDIT" && hasNumericScore && c.nota_spin > 0) {
+        return true;
+    }
+    
+    return false; // Fora dessas condições, a chamada não é válida para a média
+});
 
 /**
  * 📈 CÁLCULO DE MÉDIA SPIN
+ * Utiliza o `filterValidCalls` atualizado.
  */
 export function calculateAverageSpin(calls: SDRCall[]): number {
   const analyzed = filterValidCalls(calls);
@@ -28,12 +83,14 @@ export function calculateAverageSpin(calls: SDRCall[]): number {
 
 /**
  * 📊 CONTAGEM DE STATUS (APROVADO/ATENÇÃO/REPROVADO)
+ * Utiliza o mesmo filtro de `filterValidCalls` para garantir consistência.
  */
 export function getStatusCounts(calls: SDRCall[]) {
-  const analyzed = filterValidCalls(calls);
+  const analyzed = filterValidCalls(calls); // 🚩 ALTERAÇÃO: Usa o novo `filterValidCalls`.
   
   return analyzed.reduce(
     (acc, call) => {
+      // 🚩 GARANTIA: `status_final` pode ser nulo ou undefined, usa "NAO_IDENTIFICADO" como fallback.
       const status = call.status_final || "NAO_IDENTIFICADO";
       if (acc[status] !== undefined) {
         acc[status] = (acc[status] || 0) + 1;
@@ -46,6 +103,7 @@ export function getStatusCounts(calls: SDRCall[]) {
 
 /**
  * 🏆 RANKING DE SDRS
+ * Aprimorado para separar `count` (todas as chamadas) de `analyzedCount` (apenas as que contribuem para a média).
  */
 export function getSDRRanking(calls: SDRCall[]) {
   if (!calls || !Array.isArray(calls)) return [];
@@ -57,18 +115,22 @@ export function getSDRRanking(calls: SDRCall[]) {
       acc[name] = { name, calls: [], totalSpin: 0, doneCount: 0 };
     }
 
-    // Registra TODAS as chamadas (tentativas + conectadas)
+    // Registra TODAS as chamadas (tentativas + conectadas + analisadas)
     acc[name].calls.push(call);
 
-    // Lógica idêntica ao filtro de média para manter consistência
-    const isAnalyzed = call.processingStatus === "DONE" || (Number(call.nota_spin || 0) > 0);
+    // 🚩 ALTERAÇÃO: Lógica para determinar se a chamada contribui para a média e para analyzedCount.
+    // Reutiliza a mesma lógica do `filterValidCalls` para consistência.
+    const hasNumericScore = typeof call.nota_spin === 'number' && !isNaN(call.nota_spin);
+    const contributesToAverage = 
+        (call.processingStatus === "DONE" && hasNumericScore) || 
+        (call.processingStatus !== "SKIPPED_FOR_AUDIT" && hasNumericScore && call.nota_spin > 0);
 
-    if (isAnalyzed) {
+    if (contributesToAverage) {
       acc[name].totalSpin += Number(call.nota_spin || 0);
       acc[name].doneCount += 1;
     }
 
-    // 🚩 MARCAÇÃO: Essencial para o reduce continuar funcionando
+    // 🚩 GARANTIA: Essencial para o reduce continuar funcionando
     return acc; 
   }, {} as Record<string, { name: string; calls: SDRCall[]; totalSpin: number; doneCount: number }>);
 
@@ -76,41 +138,8 @@ export function getSDRRanking(calls: SDRCall[]) {
     .map(sdr => ({
       name: sdr.name,
       avgSpin: sdr.doneCount > 0 ? parseFloat((sdr.totalSpin / sdr.doneCount).toFixed(1)) : 0,
-      count: sdr.calls.length, 
-      analyzedCount: sdr.doneCount 
+      count: sdr.calls.length,       // 🚩 Retorna o volume total de chamadas do SDR (todas, incluindo tentativas)
+      analyzedCount: sdr.doneCount   // 🚩 Retorna o volume de chamadas que contribuíram para a média (DONE ou com nota > 0 e não SKIPPED)
     }))
-    .sort((a, b) => b.avgSpin - a.avgSpin);
-}
-
-/**
- * 📅 VALIDAÇÃO DE PERÍODO (FILTROS)
- */
-export function isWithinPeriod(dateInput: any, period: string): boolean {
-  if (!dateInput || period === 'all') return true;
-
-  // Tenta capturar segundos de várias estruturas do Firebase (suporte para tentativas e analisadas)
-  const rawDate = dateInput?._seconds || dateInput?.seconds || dateInput;
-  const seconds = typeof rawDate === 'number' ? rawDate : (rawDate?._seconds || rawDate?.seconds || null);
-  
-  const date = seconds ? new Date(seconds * 1000) : new Date(dateInput);
-  
-  if (isNaN(date.getTime())) return false;
-
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-  switch (period) {
-    case 'today': 
-      return date >= startOfToday;
-    case '7d':
-    case '7days':
-      const sevenDaysAgo = new Date(startOfToday);
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      return date >= sevenDaysAgo;
-    case 'month':
-    case '30days':
-      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-    default: 
-      return true;
-  }
+    .sort((a, b) => b.avgSpin - a.avgSpin); // Mantém a ordenação por média SPIN
 }

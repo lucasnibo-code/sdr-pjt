@@ -3,7 +3,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { CallCard } from '@/components/dashboard/CallCard';
-import { calculateAverageSpin } from '@/lib/metrics';
+// 🚩 Usando a nossa função global de filtro de tempo
+import { calculateAverageSpin, isWithinPeriod } from '@/lib/metrics';
 import { Button } from '@/components/ui/button';
 import { 
   ArrowLeft, 
@@ -12,13 +13,13 @@ import {
   Calendar, 
   ArrowDownUp, 
   PhoneIncoming,
-  Hourglass
+  Hourglass,
+  RefreshCw
 } from 'lucide-react';
 import { getInitials } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import type { SDRCall } from '@/types';
 
-type TimeFilter = 'today' | '7days' | '30days' | 'all';
 type SortOrder = 'date_desc' | 'score_desc' | 'score_asc';
 
 export default function SDRDetailPage() {
@@ -28,17 +29,30 @@ export default function SDRDetailPage() {
 
   const [allCalls, setAllCalls] = useState<SDRCall[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all'); // Começamos com 'all' para garantir volume total
-  const [sortOrder, setSortOrder] = useState<SortOrder>('date_desc');
+  
+  // 🚩 PADRÕES ATUALIZADOS: 'today' e 'score_desc' (Maior Nota)
+  const [timeFilter, setTimeFilter] = useState('today'); 
+  const [sortOrder, setSortOrder] = useState<SortOrder>('score_desc');
+  
+  // 🚩 ESTADOS PARA O CALENDÁRIO CUSTOMIZADO
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
 
-  useEffect(() => {
-    // Sincronização forçada com o Back-end (que agora envia até 200 chamadas)
-    fetch(`/api/calls?t=${Date.now()}`, { cache: 'no-store' })
+  const fetchData = () => {
+    setIsLoading(true);
+    let url = `/api/calls?t=${Date.now()}`;
+    
+    // 🚩 SE FOR DATA CUSTOMIZADA, AVISA A API PARA FILTRAR NA ORIGEM
+    if (timeFilter === 'custom' && customStartDate && customEndDate) {
+      url += `&startDate=${customStartDate}&endDate=${customEndDate}`;
+    }
+
+    fetch(url, { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
         console.log("🔍 URL SDR:", decodedName);
         
-        // Filtro de nome flexível
+        // Filtro de nome flexível para achar apenas as chamadas deste SDR
         const sdrCalls = (data as SDRCall[]).filter((c) => 
           c.ownerName?.trim().toLowerCase() === decodedName.trim().toLowerCase()
         );
@@ -52,35 +66,31 @@ export default function SDRDetailPage() {
         console.error("Erro ao buscar chamadas:", err);
         setIsLoading(false);
       });
+  };
+
+  useEffect(() => {
+    fetchData();
   }, [decodedName]);
 
   const processedData = useMemo(() => {
-    const now = new Date();
-    
-    // 1. Filtro de Tempo (Usa o campo updatedAt que adicionamos no Back-end)
+    // 1. FILTRO DE TEMPO (Utiliza a métrica global isWithinPeriod)
     const timeFiltered = allCalls.filter(call => {
-      const seconds = call.updatedAt?._seconds || call.updatedAt?.seconds || 
-                     (typeof call.updatedAt === 'number' ? call.updatedAt / 1000 : null);
+      if (timeFilter === 'custom') {
+        if (!customStartDate || !customEndDate) return true;
+        return isWithinPeriod(call.updatedAt, { start: customStartDate, end: customEndDate });
+      }
       
-      if (!seconds || timeFilter === 'all') return true;
-      
-      const callDate = new Date(seconds * 1000);
-      const diffTime = Math.abs(now.getTime() - callDate.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      if (timeFilter === 'today') return diffDays <= 1;
-      if (timeFilter === '7days') return diffDays <= 7;
-      if (timeFilter === '30days') return diffDays <= 30;
-      return true;
+      // Adaptador para manter compatibilidade com as strings do select antigo
+      const filterKey = timeFilter === '7days' ? '7d' : (timeFilter === '30days' ? 'month' : timeFilter);
+      return isWithinPeriod(call.updatedAt, filterKey);
     });
 
-    // 🚩 PONTO DE AJUSTE CRÍTICO:
-    // Consideramos válida se for DONE ou se tiver uma nota real (inclusive 0)
+    // 2. FILTRA AS VÁLIDAS PARA A MÉDIA
     const validCalls = timeFiltered.filter(c => 
       c.processingStatus === 'DONE' || (c.nota_spin !== null && c.nota_spin !== undefined && Number(c.nota_spin) >= 0 && c.processingStatus !== 'SKIPPED_FOR_AUDIT')
     );
 
-    // 3. Ordenação do histórico
+    // 3. ORDENAÇÃO DO HISTÓRICO
     const displayCalls = [...validCalls].sort((a, b) => {
       if (sortOrder === 'score_desc') return (Number(b.nota_spin) || 0) - (Number(a.nota_spin) || 0);
       if (sortOrder === 'score_asc') return (Number(a.nota_spin) || 0) - (Number(b.nota_spin) || 0);
@@ -91,12 +101,12 @@ export default function SDRDetailPage() {
     });
 
     return {
-      attemptsCount: timeFiltered.length, // Aqui mostrará as 5 tentativas da Amaranta
+      attemptsCount: timeFiltered.length,
       connectedCount: validCalls.length,
       displayCalls,
       avgSpin: calculateAverageSpin(validCalls) 
     };
-  }, [allCalls, timeFilter, sortOrder]);
+  }, [allCalls, timeFilter, sortOrder, customStartDate, customEndDate]);
 
   if (isLoading) {
     return (
@@ -138,7 +148,6 @@ export default function SDRDetailPage() {
                 <TrendingUp className="w-3 h-3 text-amber-500" /> Média Nota
               </span>
               <span className="text-2xl font-headline font-bold text-slate-900">
-                {/* 🚩 MARCAÇÃO: Se houver conectadas, mostra a nota (inclusive 0.0) */}
                 {processedData.connectedCount > 0 ? processedData.avgSpin.toFixed(1) : "--"}
               </span>
             </div>
@@ -170,20 +179,48 @@ export default function SDRDetailPage() {
           </span>
         </h3>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <div className="flex items-center bg-white border border-slate-200 rounded-lg p-1 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          {/* ORDENAÇÃO */}
+          <div className="flex items-center bg-white border border-slate-200 rounded-xl px-2 h-9 shadow-sm">
+             <ArrowDownUp className="w-3.5 h-3.5 ml-1 text-slate-400" />
+             <select 
+               value={sortOrder}
+               onChange={(e) => setSortOrder(e.target.value as SortOrder)}
+               className="bg-transparent text-xs font-semibold text-slate-600 focus:outline-none p-1.5 cursor-pointer"
+             >
+               <option value="score_desc">Maior Nota</option>
+               <option value="score_asc">Menor Nota</option>
+               <option value="date_desc">Recentes</option>
+             </select>
+          </div>
+
+          {/* FILTRO DE DATA */}
+          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
             <Calendar className="w-3.5 h-3.5 ml-2 text-slate-400" />
             <select 
               value={timeFilter}
-              onChange={(e) => setTimeFilter(e.target.value as TimeFilter)}
+              onChange={(e) => setTimeFilter(e.target.value)}
               className="bg-transparent text-xs font-semibold text-slate-600 focus:outline-none p-1.5 cursor-pointer"
             >
               <option value="today">Hoje</option>
               <option value="7days">Últimos 7 dias</option>
-              <option value="30days">Últimos 30 dias</option>
+              <option value="30days">Mês atual</option>
               <option value="all">Todo Histórico</option>
+              <option value="custom">Personalizado...</option>
             </select>
           </div>
+
+          {/* INPUTS CUSTOMIZADOS */}
+          {timeFilter === 'custom' && (
+            <div className="flex items-center gap-2 animate-in zoom-in duration-200 bg-white border border-slate-200 p-1 rounded-xl shadow-sm">
+              <input type="date" value={customStartDate} onChange={e => setCustomStartDate(e.target.value)} className="h-7 text-xs font-medium text-slate-600 rounded-lg px-2 outline-none"/>
+              <span className="text-slate-300 text-[10px] font-bold">ATÉ</span>
+              <input type="date" value={customEndDate} onChange={e => setCustomEndDate(e.target.value)} className="h-7 text-xs font-medium text-slate-600 rounded-lg px-2 outline-none"/>
+              <Button onClick={fetchData} variant="default" size="sm" className="h-7 rounded-lg px-3 bg-indigo-600 hover:bg-indigo-700">
+                <RefreshCw className="w-3 h-3" />
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -195,7 +232,7 @@ export default function SDRDetailPage() {
         ) : (
           <div className="flex flex-col items-center justify-center py-20 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-100 gap-3">
             <Hourglass className="w-8 h-8 text-slate-200 animate-pulse" />
-            <p className="text-sm text-slate-400 italic font-medium">Nenhuma análise produtiva processada.</p>
+            <p className="text-sm text-slate-400 italic font-medium">Nenhuma análise encontrada para este período.</p>
           </div>
         )}
       </div>

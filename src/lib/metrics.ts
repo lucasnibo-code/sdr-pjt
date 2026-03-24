@@ -5,38 +5,51 @@ import { SDRCall, StatusFinal } from '@/types';
  * Aprimorado para ser mais robusto na interpretação de datas do Firebase
  * e para definir corretamente o início do mês para o filtro 'month'.
  */
-export function isWithinPeriod(dateInput: any, period: string): boolean {
-  if (!dateInput || period === 'all') return true;
+// 🚩 1. TIPAGEM: Agora o 'period' aceita string OU um objeto com datas de Início e Fim
+export function isWithinPeriod(dateInput: any, period: string | { start: Date | string, end: Date | string }) {
+  if (!dateInput) return false;
+  if (period === 'all') return true;
 
-  // Tenta capturar segundos de várias estruturas do Firebase (suporte para tentativas e analisadas)
-  // O backend agora injeta createdAt/updatedAt/analyzedAt como números (seconds) ou objetos Firebase Timestamp.
   const rawDate = dateInput?._seconds || dateInput?.seconds || dateInput;
   const seconds = typeof rawDate === 'number' ? rawDate : (rawDate?._seconds || rawDate?.seconds || null);
   
-  const date = seconds ? new Date(seconds * 1000) : new Date(dateInput);
-  
-  if (isNaN(date.getTime())) return false;
-
-  const now = new Date();
-  // 🚩 ALTERAÇÃO: Ajuste para garantir que "today" e "7days" comecem no início do dia (00:00:00).
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-
-  switch (period) {
-    case 'today': 
-      return date >= startOfToday;
-    case '7d':
-    case '7days':
-      const sevenDaysAgo = new Date(startOfToday);
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      return date >= sevenDaysAgo;
-    case 'month':
-    case '30days':
-      // 🚩 ALTERAÇÃO: Considera o mês atual inteiro, começando do primeiro dia.
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-      return date >= startOfMonth;
-    default: 
-      return true;
+  let callDate: Date;
+  if (seconds) {
+    callDate = new Date(seconds * 1000);
+  } else {
+    callDate = new Date(dateInput);
   }
+
+  if (isNaN(callDate.getTime())) return false;
+
+  // 🚩 2. O NOVO SUPERPODER: Filtro Exato de Data Customizada
+  if (typeof period === 'object' && period !== null) {
+    const startDate = new Date(period.start);
+    startDate.setHours(0, 0, 0, 0); // Trava no primeiro segundo do dia
+    
+    const endDate = new Date(period.end);
+    endDate.setHours(23, 59, 59, 999); // Trava no último segundo do dia
+    
+    return callDate.getTime() >= startDate.getTime() && callDate.getTime() <= endDate.getTime();
+  }
+
+  // 3. Mantém a lógica antiga funcionando perfeitamente para os filtros rápidos
+  const now = new Date();
+  const diffTime = Math.abs(now.getTime() - callDate.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  if (period === 'today') {
+    return callDate.getDate() === now.getDate() && 
+           callDate.getMonth() === now.getMonth() && 
+           callDate.getFullYear() === now.getFullYear();
+  }
+  if (period === '7d' || period === '7days') return diffDays <= 7;
+  if (period === '30days') return diffDays <= 30;
+  if (period === 'month') {
+    return callDate.getMonth() === now.getMonth() && callDate.getFullYear() === now.getFullYear();
+  }
+
+  return true;
 }
 
 /**

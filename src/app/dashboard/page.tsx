@@ -15,7 +15,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { CallCard } from '@/components/dashboard/CallCard';
 import { SDRRanking } from '@/components/dashboard/SDRRanking';
-// 🚩 PONTO DE ALTERAÇÃO: Importando as métricas que blindamos anteriormente
 import { calculateAverageSpin, isWithinPeriod } from '@/lib/metrics';
 import type { SDRCall } from '@/types';
 
@@ -25,15 +24,26 @@ export default function DashboardPage() {
   const [calls, setCalls] = useState<SDRCall[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('date_desc');
-  // 🚩 PONTO DE ALTERAÇÃO: Ajustado para 'month' para bater com o case do metrics.ts
-  const [dateFilter, setDateFilter] = useState('month');
+  
+  // 🚩 PADRÕES INICIAIS: Maior Nota e Hoje
+  const [sortOrder, setSortOrder] = useState<SortOrder>('score_desc');
+  const [dateFilter, setDateFilter] = useState('today');
+  
+  // 🚩 Estados da data customizada
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
 
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      // 🚩 PONTO DE ALTERAÇÃO: Cache 'no-store' para garantir que os dados limpos apareçam
-      const res = await fetch(`/api/calls?t=${Date.now()}`, { cache: 'no-store' });
+      let url = `/api/calls?t=${Date.now()}`;
+      
+      // 🚩 Repassa datas para a API caso seja customizado
+      if (dateFilter === 'custom' && customStartDate && customEndDate) {
+        url += `&startDate=${customStartDate}&endDate=${customEndDate}`;
+      }
+
+      const res = await fetch(url, { cache: 'no-store' });
       const data = await res.json();
       setCalls(Array.isArray(data) ? data : []);
     } catch (error) {
@@ -51,38 +61,41 @@ export default function DashboardPage() {
   const processedCalls = useMemo(() => {
     if (!Array.isArray(calls)) return [];
 
-    // 1. Filtro de Período
-    let filtered = calls.filter(call => isWithinPeriod(call.updatedAt, dateFilter));
+    // 1. Filtro de Período (Suportando customizado)
+    let filtered = calls.filter(call => {
+      if (dateFilter === 'custom') {
+        if (!customStartDate || !customEndDate) return true;
+        return isWithinPeriod(call.updatedAt, { start: customStartDate, end: customEndDate });
+      }
+      return isWithinPeriod(call.updatedAt, dateFilter);
+    });
 
     // 2. Filtro de busca
-    filtered = filtered.filter(call => {
-      const name = call.ownerName?.toLowerCase() || '';
-      const title = call.title?.toLowerCase() || '';
+    if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      return name.includes(term) || title.includes(term);
-    });
+      filtered = filtered.filter(call => {
+        const name = call.ownerName?.toLowerCase() || '';
+        const title = call.title?.toLowerCase() || '';
+        return name.includes(term) || title.includes(term);
+      });
+    }
 
     // 3. Ordenação robusta
     return [...filtered].sort((a, b) => {
-      if (sortOrder === 'score_desc') return (b.nota_spin || 0) - (a.nota_spin || 0);
-      if (sortOrder === 'score_asc') return (a.nota_spin || 0) - (b.nota_spin || 0);
+      if (sortOrder === 'score_desc') return (Number(b.nota_spin) || 0) - (Number(a.nota_spin) || 0);
+      if (sortOrder === 'score_asc') return (Number(a.nota_spin) || 0) - (Number(b.nota_spin) || 0);
       
-      // 🚩 PONTO DE ALTERAÇÃO: Lógica de data que aceita _seconds (do script) e seconds (do SDK)
       const dateA = a.updatedAt?._seconds || a.updatedAt?.seconds || (typeof a.updatedAt === 'number' ? a.updatedAt / 1000 : 0);
       const dateB = b.updatedAt?._seconds || b.updatedAt?.seconds || (typeof b.updatedAt === 'number' ? b.updatedAt / 1000 : 0);
       
       return dateB - dateA;
     });
-  }, [calls, searchTerm, sortOrder, dateFilter]);
+  }, [calls, searchTerm, sortOrder, dateFilter, customStartDate, customEndDate]);
 
-  // 🚩 MÉTRICAS GLOBAIS: Agora filtradas pela regra de ouro (DONE)
+  // MÉTRICAS GLOBAIS
   const analyzedCalls = processedCalls.filter(c => c.processingStatus === "DONE");
-  
-  // calculateAverageSpin já faz o filtro por DONE internamente agora
   const avgSpin = calculateAverageSpin(processedCalls);
-  
   const totalCallsCount = processedCalls.length; 
-  // 🚩 PONTO DE ALTERAÇÃO: SDRs Ativos agora conta apenas quem tem ao menos uma análise DONE no período
   const activeSDRs = new Set(analyzedCalls.map(c => c.ownerName).filter(Boolean)).size;
 
   if (isLoading) {
@@ -102,21 +115,44 @@ export default function DashboardPage() {
           <p className="text-slate-400 text-sm mt-1">Visão consolidada de tentativas e análises produtivas.</p>
         </div>
         
-        <div className="flex items-center gap-2">
-          <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 py-2 shadow-sm">
-            <Calendar className="w-4 h-4 text-slate-400 mr-2" />
-            <select 
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              className="text-sm font-bold text-slate-700 bg-transparent outline-none cursor-pointer"
-            >
-              <option value="today">Hoje</option>
-              <option value="7d">Últimos 7 dias</option>
-              <option value="month">Mês atual</option>
-              <option value="all">Todo o período</option>
-            </select>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Seletor de Período e Customizado */}
+          <div className="flex flex-col sm:flex-row items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm">
+            <div className="flex items-center h-8">
+              <Calendar className="w-4 h-4 text-slate-400 mr-2" />
+              <select 
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="text-sm font-bold text-slate-700 bg-transparent outline-none cursor-pointer"
+              >
+                <option value="today">Hoje</option>
+                <option value="7d">Últimos 7 dias</option>
+                <option value="month">Mês atual</option>
+                <option value="all">Todo o período</option>
+                <option value="custom">Personalizado...</option>
+              </select>
+            </div>
+            
+            {dateFilter === 'custom' && (
+              <div className="flex items-center gap-2 sm:ml-2 sm:pl-3 sm:border-l border-slate-100 animate-in zoom-in duration-200">
+                <input 
+                  type="date" 
+                  value={customStartDate} 
+                  onChange={e => setCustomStartDate(e.target.value)} 
+                  className="h-8 text-xs font-medium text-slate-600 rounded-lg px-2 outline-none"
+                />
+                <span className="text-slate-300 text-[10px] font-bold">ATÉ</span>
+                <input 
+                  type="date" 
+                  value={customEndDate} 
+                  onChange={e => setCustomEndDate(e.target.value)} 
+                  className="h-8 text-xs font-medium text-slate-600 rounded-lg px-2 outline-none"
+                />
+              </div>
+            )}
           </div>
-          <Button onClick={fetchData} variant="outline" className="rounded-xl border-slate-200 hover:bg-slate-50">
+          
+          <Button onClick={fetchData} variant="outline" className="h-11 rounded-xl border-slate-200 hover:bg-slate-50">
             <RefreshCw className="w-4 h-4 mr-2" /> Atualizar
           </Button>
         </div>
@@ -128,7 +164,6 @@ export default function DashboardPage() {
             <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl group-hover:scale-110 transition-transform"><TrendingUp className="w-6 h-6" /></div>
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Média SPIN (Real)</p>
-              {/* 🚩 PONTO DE ALTERAÇÃO: Média agora mostra "--" se não houver dados DONE */}
               <p className="text-3xl font-headline font-bold text-slate-900">{avgSpin > 0 ? avgSpin.toFixed(1) : "--"}</p>
             </div>
           </CardContent>
@@ -140,7 +175,6 @@ export default function DashboardPage() {
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tentativas Registradas</p>
               <p className="text-3xl font-headline font-bold text-slate-900">{totalCallsCount}</p>
-              {/* 🚩 PONTO DE ALTERAÇÃO: Badge de sucesso para destacar o volume real analisado */}
               <p className="text-[9px] text-emerald-500 font-bold uppercase mt-1">{analyzedCalls.length} reuniões analisadas</p>
             </div>
           </CardContent>
@@ -160,7 +194,6 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <div className="space-y-4">
           <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Ranking do Período</h3>
-          {/* O Ranking agora vai refletir a limpeza que fizemos */}
           <SDRRanking calls={processedCalls} />
         </div>
 
@@ -182,9 +215,9 @@ export default function DashboardPage() {
                 onChange={(e) => setSortOrder(e.target.value as SortOrder)}
                 className="text-sm font-bold text-slate-700 bg-transparent outline-none cursor-pointer w-full"
               >
-                <option value="date_desc">Recentes</option>
                 <option value="score_desc">Maior Nota</option>
                 <option value="score_asc">Menor Nota</option>
+                <option value="date_desc">Recentes</option>
               </select>
             </div>
           </div>

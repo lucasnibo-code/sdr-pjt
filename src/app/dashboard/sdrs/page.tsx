@@ -3,8 +3,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { SDRCard } from '@/components/dashboard/SDRCard';
 import type { SDRCall } from '@/types';
-import { Loader2, Users, Calendar, Search } from 'lucide-react';
+import { Loader2, Users, Calendar, Search, ArrowDownUp, RefreshCw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { 
   Select, 
@@ -13,19 +14,34 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-// 🚩 PONTO DE ALTERAÇÃO: Importando a métrica que corrigimos no passo anterior
-import { isWithinPeriod } from '@/lib/metrics'; 
+// Importando a métrica e calculador de média que ajustamos
+import { isWithinPeriod, calculateAverageSpin } from '@/lib/metrics'; 
+
+type SortOrder = 'score_desc' | 'score_asc' | 'name_asc';
 
 export default function SDRsPage() {
   const [calls, setCalls] = useState<SDRCall[]>([]);
-  const [period, setPeriod] = useState('month');
-  const [isLoading, setIsLoading] = useState(true);
+  // Padrão: Hoje
+  const [period, setPeriod] = useState('today');
+  // Padrão: Maior Nota
+  const [sortOrder, setSortOrder] = useState<SortOrder>('score_desc');
   const [searchTerm, setSearchTerm] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Estados do filtro de data customizada
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
 
-  useEffect(() => {
-    // 🚩 PONTO DE ALTERAÇÃO: Adicionado timestamp (?t=...) para evitar que o navegador
-    // mostre dados antigos do cache após você rodar os scripts de limpeza.
-    fetch(`/api/calls?t=${Date.now()}`, { cache: 'no-store' })
+  const fetchData = () => {
+    setIsLoading(true);
+    let url = `/api/calls?t=${Date.now()}`;
+    
+    // Se for data customizada, repassa para a API barrar no backend
+    if (period === 'custom' && customStartDate && customEndDate) {
+      url += `&startDate=${customStartDate}&endDate=${customEndDate}`;
+    }
+
+    fetch(url, { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
         setCalls(Array.isArray(data) ? data : []);
@@ -36,31 +52,53 @@ export default function SDRsPage() {
         setCalls([]);
         setIsLoading(false);
       });
+  };
+
+  useEffect(() => {
+    fetchData();
   }, []);
 
-  // Agrupamos as chamadas por SDR, respeitando o FILTRO DE PERÍODO e BUSCA
+  // 1. Agrupa as chamadas e aplica os filtros
   const sdrGroups = useMemo(() => {
     const groups: Record<string, SDRCall[]> = {};
     
     calls.forEach(call => {
-      // 🚩 PONTO DE ALTERAÇÃO: Agora o isWithinPeriod sabe ler _seconds e seconds
-      // Isso garante que as chamadas limpas pelo script apareçam no filtro certo.
-      if (!isWithinPeriod(call.updatedAt, period)) return;
+      // Filtro de Período (Agora aceita Customizado)
+      if (period === 'custom') {
+        if (customStartDate && customEndDate && !isWithinPeriod(call.updatedAt, { start: customStartDate, end: customEndDate })) {
+          return;
+        }
+      } else if (!isWithinPeriod(call.updatedAt, period)) {
+        return;
+      }
 
-      // Filtro de Busca por Nome
+      // Filtro de Busca
       const name = call.ownerName || "Não Identificado";
       if (!name.toLowerCase().includes(searchTerm.toLowerCase())) return;
 
-      if (!groups[name]) {
-        groups[name] = [];
-      }
+      if (!groups[name]) groups[name] = [];
       groups[name].push(call);
     });
 
     return groups;
-  }, [calls, searchTerm, period]);
+  }, [calls, searchTerm, period, customStartDate, customEndDate]);
 
-  const sdrNames = useMemo(() => Object.keys(sdrGroups).sort(), [sdrGroups]);
+  // 2. ORDENAÇÃO INTELIGENTE DOS SDRS (Por Nota ou Alfabética)
+  const sdrNames = useMemo(() => {
+    const names = Object.keys(sdrGroups);
+    
+    return names.sort((a, b) => {
+      if (sortOrder === 'name_asc') return a.localeCompare(b);
+      
+      // Calcula a média exata de cada um para comparar
+      const callsA = sdrGroups[a].filter(c => c.processingStatus === 'DONE');
+      const callsB = sdrGroups[b].filter(c => c.processingStatus === 'DONE');
+      const avgA = calculateAverageSpin(callsA);
+      const avgB = calculateAverageSpin(callsB);
+      
+      return sortOrder === 'score_desc' ? avgB - avgA : avgA - avgB;
+    });
+  }, [sdrGroups, sortOrder]);
 
   if (isLoading) {
     return (
@@ -79,8 +117,7 @@ export default function SDRsPage() {
           <p className="text-slate-400 text-sm">Clique no card para ver o histórico detalhado do profissional.</p>
         </div>
         
-        <div className="flex items-center gap-3">
-          {/* Busca por Nome */}
+        <div className="flex flex-wrap items-center gap-3">
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <Input 
@@ -91,20 +128,45 @@ export default function SDRsPage() {
             />
           </div>
 
-          {/* Seletor de Período */}
+          {/* Filtro de Ordem */}
+          <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 h-10 shadow-sm min-w-[160px]">
+            <ArrowDownUp className="w-4 h-4 text-slate-400 mr-2" />
+            <select 
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as SortOrder)}
+              className="text-xs font-bold text-slate-700 bg-transparent outline-none cursor-pointer w-full"
+            >
+              <option value="score_desc">Maior Nota</option>
+              <option value="score_asc">Menor Nota</option>
+              <option value="name_asc">Ordem Alfabética</option>
+            </select>
+          </div>
+
           <Select value={period} onValueChange={setPeriod}>
-            <SelectTrigger className="w-[180px] h-10 text-xs font-bold bg-white border-slate-200 rounded-xl shadow-sm">
+            <SelectTrigger className="w-[160px] h-10 text-xs font-bold bg-white border-slate-200 rounded-xl shadow-sm">
               <Calendar className="w-3.5 h-3.5 mr-2 text-slate-400" />
               <SelectValue placeholder="Período" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="today">Hoje</SelectItem>
-              {/* 🚩 PONTO DE ALTERAÇÃO: Ajustado para bater com o case '7days' do metrics */}
               <SelectItem value="7d">Últimos 7 dias</SelectItem>
               <SelectItem value="month">Mês atual</SelectItem>
               <SelectItem value="all">Todo o histórico</SelectItem>
+              <SelectItem value="custom">Personalizado...</SelectItem>
             </SelectContent>
           </Select>
+
+          {/* Inputs Customizados */}
+          {period === 'custom' && (
+            <div className="flex items-center gap-2 animate-in zoom-in duration-200 bg-white border border-slate-200 p-1 rounded-xl shadow-sm">
+              <input type="date" value={customStartDate} onChange={e => setCustomStartDate(e.target.value)} className="h-8 text-xs font-medium text-slate-600 rounded-lg px-2 outline-none"/>
+              <span className="text-slate-300 text-[10px] font-bold">ATÉ</span>
+              <input type="date" value={customEndDate} onChange={e => setCustomEndDate(e.target.value)} className="h-8 text-xs font-medium text-slate-600 rounded-lg px-2 outline-none"/>
+              <Button onClick={fetchData} variant="default" size="sm" className="h-8 rounded-lg px-3 bg-indigo-600 hover:bg-indigo-700">
+                <RefreshCw className="w-3 h-3 text-white" />
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -121,13 +183,7 @@ export default function SDRsPage() {
               href={`/dashboard/sdrs/${encodeURIComponent(name)}`}
               className="block active:scale-95 transition-transform"
             >
-              {/* 🚩 PONTO DE ALTERAÇÃO: O SDRCard receberá todas as chamadas do período.
-                  A lógica de mostrar nota ou "--" será decidida dentro do SDRCard
-                  usando o metrics.ts que já corrigimos. */}
-              <SDRCard 
-                name={name} 
-                calls={sdrGroups[name]} 
-              />
+              <SDRCard name={name} calls={sdrGroups[name]} />
             </Link>
           ))}
         </div>

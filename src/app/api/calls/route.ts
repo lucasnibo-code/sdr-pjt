@@ -3,7 +3,8 @@ export const dynamic = 'force-dynamic';
 
 // ... resto do seu código (importações, funções GET, etc.)
 
-export async function GET() {
+// 🚩 1. Adicionamos o 'request: Request' para a API conseguir ler os filtros da URL
+export async function GET(request: Request) {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
     
@@ -11,8 +12,19 @@ export async function GET() {
       return NextResponse.json({ error: 'Configuração NEXT_PUBLIC_API_BASE_URL ausente' }, { status: 500 });
     }
 
-    // Busca a lista completa (limitada a 100) no seu backend do Render
-    const response = await fetch(`${baseUrl}/api/calls?limit=3000`, {
+    // 🚩 2. Pegamos as datas exatas que o Dashboard pediu
+    const { searchParams } = new URL(request.url);
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+
+    // 🚩 3. Montamos a URL do Back-end enxertando as datas (se elas existirem)
+    let fetchUrl = `${baseUrl}/api/calls?limit=3000`;
+    if (startDate && endDate) {
+      fetchUrl += `&startDate=${startDate}&endDate=${endDate}`;
+    }
+
+    // Busca a lista no Render passando a URL dinâmica
+    const response = await fetch(fetchUrl, {
       headers: { 'Content-Type': 'application/json' },
       cache: 'no-store',
     });

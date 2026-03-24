@@ -28,23 +28,22 @@ export default function SDRDetailPage() {
 
   const [allCalls, setAllCalls] = useState<SDRCall[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all'); // 🚩 Começamos com 'all' para garantir que nada suma por data
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all'); // Começamos com 'all' para garantir volume total
   const [sortOrder, setSortOrder] = useState<SortOrder>('date_desc');
 
   useEffect(() => {
-    // 🚩 Sincronização forçada para evitar cache antigo
+    // Sincronização forçada com o Back-end (que agora envia até 200 chamadas)
     fetch(`/api/calls?t=${Date.now()}`, { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
-        // Log de depuração para conferência no F12
         console.log("🔍 URL SDR:", decodedName);
         
-        // Filtro de nome flexível (ignora espaços e acentos se necessário)
+        // Filtro de nome flexível
         const sdrCalls = (data as SDRCall[]).filter((c) => 
           c.ownerName?.trim().toLowerCase() === decodedName.trim().toLowerCase()
         );
         
-        console.log("✅ Chamadas encontradas após filtro de nome:", sdrCalls.length);
+        console.log("✅ Chamadas encontradas no Front para este SDR:", sdrCalls.length);
   
         setAllCalls(sdrCalls);
         setIsLoading(false);
@@ -58,7 +57,7 @@ export default function SDRDetailPage() {
   const processedData = useMemo(() => {
     const now = new Date();
     
-    // 1. Filtro de Tempo (Lida com segundos/_seconds do Firebase)
+    // 1. Filtro de Tempo (Usa o campo updatedAt que adicionamos no Back-end)
     const timeFiltered = allCalls.filter(call => {
       const seconds = call.updatedAt?._seconds || call.updatedAt?.seconds || 
                      (typeof call.updatedAt === 'number' ? call.updatedAt / 1000 : null);
@@ -76,13 +75,12 @@ export default function SDRDetailPage() {
     });
 
     // 🚩 PONTO DE AJUSTE CRÍTICO:
-    // Consideramos "Conectada/Válida" se:
-    // O status for DONE OU se a nota for maior que zero (segurança para o Gregorio)
+    // Consideramos válida se for DONE ou se tiver uma nota real (inclusive 0)
     const validCalls = timeFiltered.filter(c => 
-      c.processingStatus === 'DONE' || (Number(c.nota_spin) > 0)
+      c.processingStatus === 'DONE' || (c.nota_spin !== null && c.nota_spin !== undefined && Number(c.nota_spin) >= 0 && c.processingStatus !== 'SKIPPED_FOR_AUDIT')
     );
 
-    // 3. Ordenação do histórico (Recente primeiro por padrão)
+    // 3. Ordenação do histórico
     const displayCalls = [...validCalls].sort((a, b) => {
       if (sortOrder === 'score_desc') return (Number(b.nota_spin) || 0) - (Number(a.nota_spin) || 0);
       if (sortOrder === 'score_asc') return (Number(a.nota_spin) || 0) - (Number(b.nota_spin) || 0);
@@ -93,7 +91,7 @@ export default function SDRDetailPage() {
     });
 
     return {
-      attemptsCount: timeFiltered.length,
+      attemptsCount: timeFiltered.length, // Aqui mostrará as 5 tentativas da Amaranta
       connectedCount: validCalls.length,
       displayCalls,
       avgSpin: calculateAverageSpin(validCalls) 
@@ -140,7 +138,8 @@ export default function SDRDetailPage() {
                 <TrendingUp className="w-3 h-3 text-amber-500" /> Média Nota
               </span>
               <span className="text-2xl font-headline font-bold text-slate-900">
-                {processedData.avgSpin > 0 ? processedData.avgSpin.toFixed(1) : "--"}
+                {/* 🚩 MARCAÇÃO: Se houver conectadas, mostra a nota (inclusive 0.0) */}
+                {processedData.connectedCount > 0 ? processedData.avgSpin.toFixed(1) : "--"}
               </span>
             </div>
 

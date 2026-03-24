@@ -1,41 +1,37 @@
 import { SDRCall, StatusFinal } from '@/types';
 
 /**
- * 🛠️ FILTRO GLOBAL DE SEGURANÇA
- * Este filtro garante que só calcularemos médias de chamadas que a IA
- * realmente processou com sucesso (DONE).
+ * 🛠️ FILTRO DE SEGURANÇA FLEXÍVEL
+ * Antes só aceitava "DONE". Agora, se a IA deu uma nota (nota_spin > 0),
+ * nós consideramos a chamada válida para a média, independente do status.
  */
-const filterDone = (calls: SDRCall[]) => 
-  calls.filter(c => c.processingStatus === "DONE");
+const filterValidCalls = (calls: SDRCall[]) => 
+  calls.filter(c => c.processingStatus === "DONE" || (Number(c.nota_spin) > 0));
 
 /**
  * 📈 CÁLCULO DE MÉDIA SPIN
- * Alterado para retornar 0 apenas se houver chamadas processadas com nota 0.
- * Se não houver chamadas "DONE", o componente visual deve tratar como "--".
+ * Agora usa o filtro flexível e garante que notas em formato de texto viraram números.
  */
 export function calculateAverageSpin(calls: SDRCall[]): number {
-  const analyzed = filterDone(calls);
+  const analyzed = filterValidCalls(calls);
   
-  // Se não tem chamada validada, retornamos 0 para evitar erro de divisão (NaN)
+  // Se não tem chamada validada, retornamos 0
   if (analyzed.length === 0) return 0;
 
-  const total = analyzed.reduce((acc, call) => acc + (call.nota_spin || 0), 0);
+  // 🚩 PONTO DE ALTERAÇÃO: Number() garante que "6" vira 6 para a conta não quebrar
+  const total = analyzed.reduce((acc, call) => acc + (Number(call.nota_spin) || 0), 0);
   
-  // Retorna a média com 1 casa decimal
   return parseFloat((total / analyzed.length).toFixed(1));
 }
 
 /**
  * 📊 CONTAGEM DE STATUS (APROVADO/ATENÇÃO/REPROVADO)
- * Garante que o gráfico de pizza ou barras não conte chamadas descartadas.
  */
 export function getStatusCounts(calls: SDRCall[]) {
-  // Ignora chamadas curtas ou não conectadas (não DONE)
-  const analyzed = filterDone(calls);
+  const analyzed = filterValidCalls(calls);
   
   return analyzed.reduce(
     (acc, call) => {
-      // Se a IA não identificou um status, cai no "NAO_IDENTIFICADO"
       const status = call.status_final || "NAO_IDENTIFICADO";
       if (acc[status] !== undefined) {
         acc[status] = (acc[status] || 0) + 1;
@@ -48,7 +44,7 @@ export function getStatusCounts(calls: SDRCall[]) {
 
 /**
  * 🏆 RANKING DE SDRS
- * Organiza a lista principal. Diferencia "Volume de Tentativas" de "Volume Real".
+ * Agora o ranking também considera o Gregorio Goulart para a média da Ana Julia.
  */
 export function getSDRRanking(calls: SDRCall[]) {
   const grouped = calls.reduce((acc, call) => {
@@ -60,9 +56,11 @@ export function getSDRRanking(calls: SDRCall[]) {
 
     acc[name].calls.push(call);
 
-    // 🚩 PONTO DE ALTERAÇÃO: A nota só entra no ranking se for DONE
-    if (call.processingStatus === "DONE") {
-      acc[name].totalSpin += (call.nota_spin || 0);
+    // 🚩 PONTO DE ALTERAÇÃO: A lógica do ranking agora bate com a lógica da média
+    const isAnalyzed = call.processingStatus === "DONE" || (Number(call.nota_spin) > 0);
+
+    if (isAnalyzed) {
+      acc[name].totalSpin += (Number(call.nota_spin) || 0);
       acc[name].doneCount += 1;
     }
     return acc;
@@ -71,25 +69,20 @@ export function getSDRRanking(calls: SDRCall[]) {
   return Object.values(grouped)
     .map(sdr => ({
       name: sdr.name,
-      // Média baseada apenas no que é produtivo
       avgSpin: sdr.doneCount > 0 ? parseFloat((sdr.totalSpin / sdr.doneCount).toFixed(1)) : 0,
-      // count = Tentativas totais (ex: as 21 da Ana Julia)
-      count: sdr.calls.length, 
-      // analyzedCount = Só o que tem nota (ex: o 6.0 do Gregorio)
-      analyzedCount: sdr.doneCount 
+      count: sdr.calls.length, // Tentativas Totais
+      analyzedCount: sdr.doneCount // Chamadas que entraram na média
     }))
-    .sort((a, b) => b.avgSpin - a.avgSpin); // Ordena do melhor para o pior
+    .sort((a, b) => b.avgSpin - a.avgSpin);
 }
 
 /**
  * 📅 VALIDAÇÃO DE PERÍODO (FILTROS)
- * Ajustado para suportar os formatos de data do Firebase (_seconds e seconds).
+ * Mantendo o suporte para os formatos de data do Firebase (_seconds e seconds).
  */
 export function isWithinPeriod(dateInput: any, period: string): boolean {
   if (!dateInput || period === 'all') return true;
 
-  // 🚩 PONTO DE ALTERAÇÃO: Suporte para _seconds (vindo do Firebase Admin/Scripts)
-  // e seconds (vindo do SDK padrão do Firebase)
   const seconds = dateInput?._seconds || dateInput?.seconds || (typeof dateInput === 'number' ? dateInput / 1000 : null);
   
   const date = seconds ? new Date(seconds * 1000) : new Date(dateInput);
@@ -103,7 +96,7 @@ export function isWithinPeriod(dateInput: any, period: string): boolean {
     case 'today': 
       return date >= startOfToday;
     case '7d':
-    case '7days': // Suporte para os dois nomes de filtro
+    case '7days':
       const sevenDaysAgo = new Date(startOfToday);
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       return date >= sevenDaysAgo;

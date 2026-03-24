@@ -3,7 +3,6 @@
 import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { Hourglass } from 'lucide-react'; 
-// 🚩 PONTO DE ATENÇÃO: Importe o tipo se necessário, ou mantenha como any se o arquivo de tipos estiver longe
 import type { SDRCall } from '@/types'; 
 
 interface SDRCardProps {
@@ -12,28 +11,30 @@ interface SDRCardProps {
 }
 
 export function SDRCard({ name, calls }: SDRCardProps) {
-  // 🚩 PONTO DE ALTERAÇÃO: Filtro Crítico de Performance
-  // Agora o Card ignora as chamadas curtas/com erro que limpamos no banco.
-  // Ele só considera para a NOTA o que a IA carimbou como DONE.
+  // 🚩 PONTO DE ALTERAÇÃO: Filtro Flexível
+  // Agora o card considera chamadas DONE OU chamadas que a IA deu nota (caso do Gregorio)
   const evaluatedCalls = useMemo(() => {
-    return (calls || []).filter(call => call.processingStatus === "DONE");
+    return (calls || []).filter(call => 
+      call.processingStatus === "DONE" || (Number(call.nota_spin) > 0)
+    );
   }, [calls]);
 
-  // 🚩 PONTO DE ALTERAÇÃO: Cálculo da Média Protegido
-  // Se não houver chamadas DONE, retornamos null. Isso evita o "0.0" fantasma.
+  // 🚩 PONTO DE ALTERAÇÃO: Cálculo da Média com Conversão Numérica
+  // Se não houver chamadas validadas, retornamos null para exibir o estado "--"
   const avgSpin = useMemo(() => {
     if (evaluatedCalls.length === 0) return null;
-    const totalScore = evaluatedCalls.reduce((acc, call) => acc + (call.nota_spin || 0), 0);
+    
+    // Garantimos que nota_spin seja tratado como número (evita erros se vier como string "6")
+    const totalScore = evaluatedCalls.reduce((acc, call) => acc + (Number(call.nota_spin) || 0), 0);
     return totalScore / evaluatedCalls.length;
   }, [evaluatedCalls]);
 
   // 3. Sistema de Cores Inteligente
   const getScoreStyles = (score: number | null) => {
-    // 🚩 ESTADO: Aguardando Análise (Cinza)
-    // Se o score for null, o card fica "desativado" visualmente.
+    // ESTADO: Aguardando Análise (Cinza)
     if (score === null) return "text-slate-300 bg-slate-50/50 border-slate-100 opacity-70";
     
-    // ESTADOS DE PERFORMANCE (Cores vivas apenas para dados reais)
+    // ESTADOS DE PERFORMANCE (Cores ativas para dados reais)
     if (score >= 8) return "text-emerald-600 bg-emerald-50 border-emerald-100";
     if (score >= 5) return "text-amber-600 bg-amber-50 border-amber-100";
     return "text-rose-600 bg-rose-50 border-rose-100";
@@ -42,7 +43,7 @@ export function SDRCard({ name, calls }: SDRCardProps) {
   const scoreStyle = getScoreStyles(avgSpin);
 
   return (
-    <div className="bg-white border border-slate-100 rounded-2xl p-8 flex flex-col items-center shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
+    <div className="bg-white border border-slate-100 rounded-2xl p-8 flex flex-col items-center shadow-sm hover:shadow-md transition-all group relative overflow-hidden h-full">
       
       {/* Box da Nota com Lógica de "Vazio" */}
       <div className={cn(
@@ -50,11 +51,9 @@ export function SDRCard({ name, calls }: SDRCardProps) {
         scoreStyle
       )}>
         <span className="text-[10px] font-bold uppercase tracking-widest mb-1 opacity-70">
-          {/* 🚩 PONTO DE ALTERAÇÃO: Label dinâmica */}
           {avgSpin === null ? "Aguardando" : "Média Spin"}
         </span>
         <span className="text-5xl font-black tabular-nums">
-          {/* 🚩 PONTO DE ALTERAÇÃO: Exibição da nota ou traço */}
           {avgSpin !== null ? avgSpin.toFixed(1) : "--"}
         </span>
       </div>
@@ -65,7 +64,7 @@ export function SDRCard({ name, calls }: SDRCardProps) {
       </div>
 
       {/* Nome do SDR */}
-      <h3 className="text-sm font-bold text-slate-800 uppercase tracking-tight text-center group-hover:text-indigo-600 transition-colors">
+      <h3 className="text-sm font-bold text-slate-800 uppercase tracking-tight text-center group-hover:text-indigo-600 transition-colors line-clamp-1">
         {name}
       </h3>
 

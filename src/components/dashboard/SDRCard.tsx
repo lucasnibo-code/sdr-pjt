@@ -11,32 +11,37 @@ interface SDRCardProps {
 }
 
 export function SDRCard({ name, calls }: SDRCardProps) {
-  // 🚩 PONTO DE ALTERAÇÃO: Filtro Flexível
-  // Agora o card considera chamadas DONE OU chamadas que a IA deu nota (caso do Gregorio)
+  // 🚩 FILTRO FLEXÍVEL:
+  // Consideramos avaliada se:
+  // 1. O status for DONE (mesmo que a nota seja 0.0)
+  // 2. OU se houver uma nota maior que zero (caso do Gregorio)
   const evaluatedCalls = useMemo(() => {
     return (calls || []).filter(call => 
-      call.processingStatus === "DONE" || (Number(call.nota_spin) > 0)
+      call.processingStatus === "DONE" || (Number(call.nota_spin || 0) > 0)
     );
   }, [calls]);
 
-  // 🚩 PONTO DE ALTERAÇÃO: Cálculo da Média com Conversão Numérica
-  // Se não houver chamadas validadas, retornamos null para exibir o estado "--"
+  // 🚩 CÁLCULO DA MÉDIA:
+  // Só retornamos null se não houver NENHUMA chamada avaliada.
+  // Se houver uma chamada com nota 0.0, a média será 0.0 (e não null).
   const avgSpin = useMemo(() => {
     if (evaluatedCalls.length === 0) return null;
     
-    // Garantimos que nota_spin seja tratado como número (evita erros se vier como string "6")
     const totalScore = evaluatedCalls.reduce((acc, call) => acc + (Number(call.nota_spin) || 0), 0);
     return totalScore / evaluatedCalls.length;
   }, [evaluatedCalls]);
 
-  // 3. Sistema de Cores Inteligente
+  // 🚩 SISTEMA DE CORES:
+  // Agora o 0.0 não cai mais no cinza (Aguardando).
   const getScoreStyles = (score: number | null) => {
-    // ESTADO: Aguardando Análise (Cinza)
+    // Só fica cinza/opaco se não houver dados para calcular
     if (score === null) return "text-slate-300 bg-slate-50/50 border-slate-100 opacity-70";
     
-    // ESTADOS DE PERFORMANCE (Cores ativas para dados reais)
+    // Cores baseadas na performance real
     if (score >= 8) return "text-emerald-600 bg-emerald-50 border-emerald-100";
     if (score >= 5) return "text-amber-600 bg-amber-50 border-amber-100";
+    
+    // Notas abaixo de 5 (incluindo 0.0) ficam em Vermelho/Rose
     return "text-rose-600 bg-rose-50 border-rose-100";
   };
 
@@ -45,7 +50,7 @@ export function SDRCard({ name, calls }: SDRCardProps) {
   return (
     <div className="bg-white border border-slate-100 rounded-2xl p-8 flex flex-col items-center shadow-sm hover:shadow-md transition-all group relative overflow-hidden h-full">
       
-      {/* Box da Nota com Lógica de "Vazio" */}
+      {/* Box da Nota */}
       <div className={cn(
         "w-32 h-32 rounded-3xl border-2 flex flex-col items-center justify-center transition-all mb-6",
         scoreStyle
@@ -68,7 +73,7 @@ export function SDRCard({ name, calls }: SDRCardProps) {
         {name}
       </h3>
 
-      {/* Contagem de Chamadas e Status */}
+      {/* Estatísticas */}
       <div className="mt-3 text-center space-y-1">
         {avgSpin !== null ? (
           <p className="text-[11px] font-bold text-emerald-500 uppercase tracking-tighter">
@@ -81,13 +86,13 @@ export function SDRCard({ name, calls }: SDRCardProps) {
           </div>
         )}
         
-        {/* Rastro de Auditoria (Esforço Bruto) */}
+        {/* Tentativas Totais (Inclui SKIPPED_FOR_AUDIT e etc) */}
         <p className="text-[9px] text-slate-300 font-medium italic">
           {calls.length} {calls.length === 1 ? 'tentativa registrada' : 'tentativas registradas'}
         </p>
       </div>
 
-      {/* Badge Flutuante para "Top Performer" */}
+      {/* Badge Top Player */}
       {avgSpin !== null && avgSpin >= 8.5 && (
         <div className="absolute top-2 right-2 bg-indigo-500 text-white text-[8px] font-black px-2 py-1 rounded-lg uppercase shadow-lg animate-in zoom-in duration-300">
           Top Player

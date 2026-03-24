@@ -10,14 +10,15 @@ import {
   XCircle,
   ShieldCheck,
   FileArchive,
-  Loader2
+  Loader2,
+  Hourglass
 } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import type { SDRCall } from '@/types'; // Removido StatusFinal pois vamos calcular
+import type { SDRCall } from '@/types';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
@@ -30,7 +31,8 @@ export default function CallsListPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    fetch('/api/calls')
+    // 🚩 Adicionado timestamp para evitar cache
+    fetch(`/api/calls?t=${Date.now()}`)
       .then(res => res.json())
       .then(data => {
         setCalls(Array.isArray(data) ? data : []);
@@ -48,33 +50,33 @@ export default function CallsListPage() {
     setIsExporting(true);
     try {
       const zip = new JSZip();
-      
       filteredCalls.forEach((call) => {
         const fileName = `${call.id || 'call'}-${call.ownerName || 'sdr'}.json`;
         zip.file(fileName, JSON.stringify(call, null, 2));
       });
-
       const content = await zip.generateAsync({ type: 'blob' });
       saveAs(content, `analise-chamadas-export-${new Date().toISOString().split('T')[0]}.zip`);
-      
-      toast({
-        title: "Exportação Concluída",
-        description: `${filteredCalls.length} chamadas foram compactadas com sucesso.`,
-      });
+      toast({ title: "Exportação Concluída", description: `${filteredCalls.length} chamadas exportadas.` });
     } catch (error) {
-      console.error('Erro ao exportar ZIP:', error);
-      toast({
-        variant: "destructive",
-        title: "Erro na Exportação",
-        description: "Não foi possível gerar o arquivo ZIP.",
-      });
+      toast({ variant: "destructive", title: "Erro na Exportação" });
     } finally {
       setIsExporting(false);
     }
   };
 
-  // NOVA LÓGICA DE CORES BASEADA NA NOTA
-  const getStatusBadge = (nota: number) => {
+  // 🚩 FUNÇÃO DE BADGE CORRIGIDA: Lida com casos sem nota (tentativas)
+  const getStatusBadge = (call: SDRCall) => {
+    const nota = call.nota_spin;
+    const isProcessed = call.processingStatus === "DONE";
+
+    if (!isProcessed && (!nota || nota === 0)) {
+      return (
+        <Badge className="bg-slate-100 text-slate-400 border-slate-200 hover:bg-slate-100 shadow-none">
+          <Hourglass className="w-3 h-3 mr-1" /> Tentativa
+        </Badge>
+      );
+    }
+
     if (nota >= 7) {
       return (
         <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100 shadow-none">
@@ -107,7 +109,7 @@ export default function CallsListPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-headline font-bold text-slate-900">Histórico de Chamadas</h1>
-          <p className="text-slate-400 text-sm mt-1">Dados consolidados de todas as avaliações.</p>
+          <p className="text-slate-400 text-sm mt-1">Dados consolidados de todas as avaliações e tentativas.</p>
         </div>
         <Button 
           variant="outline" 
@@ -116,11 +118,7 @@ export default function CallsListPage() {
           onClick={handleExportZip}
           disabled={isExporting || filteredCalls.length === 0}
         >
-          {isExporting ? (
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-          ) : (
-            <FileArchive className="w-4 h-4 mr-2" />
-          )}
+          {isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileArchive className="w-4 h-4 mr-2" />}
           Exportar ZIP
         </Button>
       </div>
@@ -137,9 +135,6 @@ export default function CallsListPage() {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <Button variant="outline" size="icon" className="h-9 w-9 border-slate-100">
-              <Filter className="w-4 h-4 text-slate-400" />
-            </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -158,13 +153,9 @@ export default function CallsListPage() {
                 </thead>
                 <tbody className="[&_tr:last-child]:border-0">
                   {isLoading ? (
-                    <tr>
-                      <td colSpan={6} className="h-32 text-center text-slate-400 text-xs italic">Carregando chamadas...</td>
-                    </tr>
+                    <tr><td colSpan={6} className="h-32 text-center text-slate-400 text-xs italic">Carregando chamadas...</td></tr>
                   ) : filteredCalls.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="h-32 text-center text-slate-400 text-xs italic">Nenhuma chamada encontrada.</td>
-                    </tr>
+                    <tr><td colSpan={6} className="h-32 text-center text-slate-400 text-xs italic">Nenhuma chamada encontrada.</td></tr>
                   ) : (
                     filteredCalls.map((call) => (
                       <tr key={call.id} className="border-b border-slate-50 transition-colors hover:bg-slate-50/30 group">
@@ -175,10 +166,20 @@ export default function CallsListPage() {
                             <span className="text-[10px] text-slate-400 uppercase tracking-tight">{call.teamName}</span>
                           </div>
                         </td>
-                        {/* AQUI PASSAMOS A NOTA PARA A FUNÇÃO */}
-                        <td className="p-4 align-middle">{getStatusBadge(call.nota_spin)}</td>
-                        <td className="p-4 align-middle font-bold text-slate-900 text-center">{call.nota_spin.toFixed(1)}</td>
-                        <td className="p-4 align-middle text-slate-500 text-xs">{(call.durationMs / 60000).toFixed(1)} min</td>
+                        <td className="p-4 align-middle">
+                          {/* 🚩 AGORA ENVIAMOS A 'call' INTEIRA PARA A FUNÇÃO DECIDIR O BADGE */}
+                          {getStatusBadge(call)}
+                        </td>
+                        <td className="p-4 align-middle font-bold text-slate-900 text-center">
+                          {/* 🚩 PROTEÇÃO: Só tenta formatar nota se ela existir, senão mostra '--' */}
+                          {call.processingStatus === "DONE" || (call.nota_spin !== null && call.nota_spin !== undefined) 
+                             ? Number(call.nota_spin).toFixed(1) 
+                             : "--"}
+                        </td>
+                        <td className="p-4 align-middle text-slate-500 text-xs">
+                          {/* 🚩 PROTEÇÃO: Garante que durationMs seja um número antes da conta */}
+                          {call.durationMs ? (Number(call.durationMs) / 60000).toFixed(1) : "0.0"} min
+                        </td>
                         <td className="p-4 align-middle text-right">
                           <Button asChild size="sm" variant="ghost" className="h-8 text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-slate-900">
                             <Link href={`/dashboard/calls/${call.id}`}>

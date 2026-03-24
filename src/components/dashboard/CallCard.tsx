@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
-import { ChevronRight, Clock, Database, Radio } from 'lucide-react';
+import { ChevronRight, Clock, Database, Radio, Hourglass } from 'lucide-react';
 import type { SDRCall } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -9,16 +9,20 @@ interface CallCardProps {
 }
 
 export function CallCard({ call }: CallCardProps) {
-  // NOVA LÓGICA: Cor baseada estritamente na nota numérica
-  const getStatusColor = (nota: number) => {
-    if (nota >= 7) return "bg-green-500";   // Notas de 7.0 a 10
-    if (nota >= 5) return "bg-amber-500";   // Notas de 5.0 a 6.9
-    return "bg-red-500";                   // Notas abaixo de 5.0
+  // 🚩 LÓGICA DE STATUS: Verifica se a chamada foi realmente analisada
+  const isProcessed = call.processingStatus === "DONE" || (Number(call.nota_spin) > 0);
+  const notaValida = isProcessed ? Number(call.nota_spin || 0) : null;
+
+  // 🚩 CORES: Agora aceita o estado "Tentativa" (Cinza)
+  const getStatusColor = (nota: number | null) => {
+    if (nota === null) return "bg-slate-200"; // Tentativa / Aguardando
+    if (nota >= 7) return "bg-green-500";     // Aprovado
+    if (nota >= 5) return "bg-amber-500";     // Atenção
+    return "bg-red-500";                      // Reprovado
   };
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '--/--';
-    // Pequeno ajuste para evitar erros de data inválida
     try {
       return new Date(dateStr).toLocaleDateString('pt-BR', {
         day: '2-digit',
@@ -30,8 +34,9 @@ export function CallCard({ call }: CallCardProps) {
     }
   };
 
-  const formatDuration = (ms: number) => {
-    const minutes = Math.floor(ms / 60000);
+  const formatDuration = (ms: number | undefined) => {
+    if (!ms) return '0 min';
+    const minutes = Math.floor(Number(ms) / 60000);
     return `${minutes} min`;
   };
 
@@ -39,10 +44,10 @@ export function CallCard({ call }: CallCardProps) {
     <Link href={`/dashboard/calls/${call.id}`}>
       <div className="group flex items-center justify-between p-4 bg-white border border-slate-100 rounded-lg hover:border-slate-300 transition-all duration-200">
         <div className="flex items-center gap-4">
-          {/* A barrinha lateral agora usa a nota para definir a cor */}
+          {/* Barrinha lateral dinâmica */}
           <div className={cn(
             "w-1.5 h-10 rounded-full shrink-0 transition-colors", 
-            getStatusColor(call.nota_spin)
+            getStatusColor(notaValida)
           )} />
           
           <div className="space-y-1">
@@ -57,23 +62,26 @@ export function CallCard({ call }: CallCardProps) {
               <span>{formatDate(call.analyzedAt)}</span>
               <span className="flex items-center gap-1 opacity-60">
                 {call.source === 'HUBSPOT' ? <Radio className="w-3 h-3" /> : <Database className="w-3 h-3" />}
-                {call.source}
+                {call.source || 'SISTEMA'}
               </span>
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-8">
-          <div className="text-right">
+          <div className="text-right min-w-[40px]">
             <div className={cn(
               "text-lg font-headline font-bold leading-none",
-              // Opcional: Colorir o número da nota também para combinar com a barra
-              call.nota_spin >= 7 ? "text-green-600" : 
-              call.nota_spin >= 5 ? "text-amber-600" : "text-red-600"
+              notaValida === null ? "text-slate-300" :
+              notaValida >= 7 ? "text-green-600" : 
+              notaValida >= 5 ? "text-amber-600" : "text-red-600"
             )}>
-              {call.nota_spin.toFixed(1)}
+              {/* 🚩 PROTEÇÃO FINAL: Nunca quebra se nota for null */}
+              {notaValida !== null ? notaValida.toFixed(1) : "--"}
             </div>
-            <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">SPIN</div>
+            <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+              {notaValida !== null ? "SPIN" : <Hourglass className="w-2 h-2 mx-auto" />}
+            </div>
           </div>
           <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-900 group-hover:translate-x-0.5 transition-all" />
         </div>

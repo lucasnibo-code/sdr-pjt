@@ -32,13 +32,18 @@ export default function SDRDetailPage() {
   const [sortOrder, setSortOrder] = useState<SortOrder>('date_desc');
 
   useEffect(() => {
-    // 🚩 PONTO DE ALTERAÇÃO: Adicionado timestamp (?t=...) e cache: 'no-store'
-    // Isso força o navegador a buscar os dados novos do Firebase (como o 6.0 do Gregorio)
-    // ignorando qualquer "memória" antiga que o site tenha guardado.
     fetch(`/api/calls?t=${Date.now()}`, { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
+        // 🚩 ADICIONE ESTAS DUAS LINHAS:
+        console.log("🔍 Nome que vem da URL:", decodedName);
+        console.log("📊 Exemplo de nome que vem do Banco:", data[0]?.ownerName);
+        
         const sdrCalls = (data as SDRCall[]).filter((c) => c.ownerName === decodedName);
+        
+        // 🚩 ADICIONE ESTA LINHA TAMBÉM:
+        console.log("✅ Chamadas filtradas para este SDR:", sdrCalls.length);
+  
         setAllCalls(sdrCalls);
         setIsLoading(false);
       })

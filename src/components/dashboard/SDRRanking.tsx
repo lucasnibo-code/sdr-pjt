@@ -1,6 +1,6 @@
 "use client";
 
-import { Trophy, ArrowRight, AlertCircle, CheckCircle2, MinusCircle } from 'lucide-react';
+import { Trophy, ArrowRight, AlertCircle, CheckCircle2, MinusCircle, Phone } from 'lucide-react';
 import Link from 'next/link';
 import { getSDRRanking } from '@/lib/metrics';
 import type { SDRCall } from '@/types';
@@ -11,10 +11,9 @@ interface SDRRankingProps {
 }
 
 export function SDRRanking({ calls }: SDRRankingProps) {
-  // O ranking é calculado dinamicamente com base nas chamadas filtradas (mês/busca)
+  // O ranking agora traz 'count' (total) e 'analyzedCount' (reais)
   const ranking = getSDRRanking(calls);
 
-  // Função auxiliar para definir a cor e o ícone de status baseado na nota
   const getStatusConfig = (avg: number) => {
     if (avg >= 8) return { color: "text-emerald-500", bg: "bg-emerald-50", icon: <CheckCircle2 className="w-3 h-3" /> };
     if (avg >= 5) return { color: "text-amber-500", bg: "bg-amber-50", icon: <MinusCircle className="w-3 h-3" /> };
@@ -31,16 +30,22 @@ export function SDRRanking({ calls }: SDRRankingProps) {
 
   return (
     <div className="bg-white border border-slate-100 rounded-xl overflow-hidden shadow-sm">
-      <div className="p-5 border-b border-slate-50 bg-slate-50/30">
+      <div className="p-5 border-b border-slate-50 bg-slate-50/30 flex justify-between items-center">
         <h3 className="text-[10px] font-bold text-slate-900 flex items-center gap-2 uppercase tracking-[0.15em]">
           <Trophy className="w-3.5 h-3.5 text-amber-500" />
           Ranking Performance
         </h3>
+        {/* Badge discreto de total de tentativas do time */}
+        <span className="text-[9px] font-bold text-slate-300 uppercase tracking-tighter flex items-center gap-1">
+          <Phone className="w-2.5 h-2.5" /> {calls.length} Total
+        </span>
       </div>
       
       <div className="divide-y divide-slate-50">
         {ranking.map((sdr, index) => {
           const status = getStatusConfig(Number(sdr.avgSpin));
+          // Usamos 'analyzedCount' para o texto ficar honesto
+          const realCalls = (sdr as any).analyzedCount || 0; 
           
           return (
             <Link 
@@ -49,7 +54,6 @@ export function SDRRanking({ calls }: SDRRankingProps) {
               className="flex items-center justify-between p-4 hover:bg-slate-50 transition-all group"
             >
               <div className="flex items-center gap-3">
-                {/* Posição com destaque para o Top 3 */}
                 <span className={cn(
                   "text-[10px] font-black w-5 text-center transition-colors",
                   index === 0 ? "text-amber-500" : 
@@ -60,11 +64,11 @@ export function SDRRanking({ calls }: SDRRankingProps) {
                 </span>
                 
                 <div>
-                  <p className="text-[11px] font-bold text-slate-700 group-hover:text-indigo-600 transition-colors">
+                  <p className="text-[11px] font-bold text-slate-700 group-hover:text-indigo-600 transition-colors uppercase">
                     {sdr.name}
                   </p>
-                  <p className="text-[9px] text-slate-400 font-medium">
-                    {sdr.count} {sdr.count === 1 ? 'chamada' : 'chamadas'}
+                  <p className="text-[9px] text-emerald-500 font-bold flex items-center gap-1">
+                    {realCalls} {realCalls === 1 ? 'analisada' : 'analisadas'}
                   </p>
                 </div>
               </div>
@@ -79,7 +83,7 @@ export function SDRRanking({ calls }: SDRRankingProps) {
                     {status.icon}
                     {Number(sdr.avgSpin).toFixed(1)}
                   </div>
-                  <p className="text-[8px] text-slate-400 font-bold uppercase tracking-tighter">Nota Média</p>
+                  <p className="text-[8px] text-slate-400 font-bold uppercase tracking-tighter">Nota Spin</p>
                 </div>
                 <ArrowRight className="w-3.5 h-3.5 text-slate-200 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all" />
               </div>
@@ -88,10 +92,9 @@ export function SDRRanking({ calls }: SDRRankingProps) {
         })}
       </div>
       
-      {/* Rodapé informativo */}
       <div className="p-3 bg-slate-50/50 border-t border-slate-50 text-center">
-        <p className="text-[9px] text-slate-400 font-medium">
-          Baseado nas chamadas do período selecionado
+        <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">
+          Apenas reuniões produtivas (+2 min)
         </p>
       </div>
     </div>

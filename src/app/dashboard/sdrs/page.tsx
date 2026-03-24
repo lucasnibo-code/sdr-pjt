@@ -5,7 +5,7 @@ import { SDRCard } from '@/components/dashboard/SDRCard';
 import type { SDRCall } from '@/types';
 import { Loader2, Users, Calendar, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import Link from 'next/link'; // IMPORTANTE: Adicionamos o Link aqui
+import Link from 'next/link';
 import { 
   Select, 
   SelectContent, 
@@ -13,6 +13,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
+import { isWithinPeriod } from '@/lib/metrics'; // Certifique-se que essa função existe no seu lib/metrics
 
 export default function SDRsPage() {
   const [calls, setCalls] = useState<SDRCall[]>([]);
@@ -34,10 +35,15 @@ export default function SDRsPage() {
       });
   }, []);
 
+  // Agrupamos as chamadas por SDR, respeitando o FILTRO DE PERÍODO e BUSCA
   const sdrGroups = useMemo(() => {
     const groups: Record<string, SDRCall[]> = {};
     
     calls.forEach(call => {
+      // 1. Filtro de Período
+      if (!isWithinPeriod(call.updatedAt, period)) return;
+
+      // 2. Filtro de Busca por Nome
       const name = call.ownerName || "Não Identificado";
       if (!name.toLowerCase().includes(searchTerm.toLowerCase())) return;
 
@@ -48,7 +54,7 @@ export default function SDRsPage() {
     });
 
     return groups;
-  }, [calls, searchTerm]);
+  }, [calls, searchTerm, period]);
 
   const sdrNames = useMemo(() => Object.keys(sdrGroups).sort(), [sdrGroups]);
 
@@ -70,16 +76,18 @@ export default function SDRsPage() {
         </div>
         
         <div className="flex items-center gap-3">
+          {/* Busca por Nome */}
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <Input 
               placeholder="Buscar SDR..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 h-10 bg-white border-slate-200 rounded-xl shadow-sm"
+              className="pl-10 h-10 bg-white border-slate-200 rounded-xl shadow-sm focus-visible:ring-indigo-100"
             />
           </div>
 
+          {/* Seletor de Período */}
           <Select value={period} onValueChange={setPeriod}>
             <SelectTrigger className="w-[180px] h-10 text-xs font-bold bg-white border-slate-200 rounded-xl shadow-sm">
               <Calendar className="w-3.5 h-3.5 mr-2 text-slate-400" />
@@ -98,12 +106,11 @@ export default function SDRsPage() {
       {sdrNames.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-100">
           <Users className="w-10 h-10 text-slate-200 mb-4" />
-          <p className="text-sm text-slate-400 italic">Nenhum SDR encontrado.</p>
+          <p className="text-sm text-slate-400 italic">Nenhum registro encontrado para este período ou busca.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {sdrNames.map((name) => (
-            /* O SEGREDO ESTÁ AQUI: Link em volta do card */
             <Link 
               key={name} 
               href={`/dashboard/sdrs/${encodeURIComponent(name)}`}

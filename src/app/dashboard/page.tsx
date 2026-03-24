@@ -27,16 +27,18 @@ export default function DashboardPage() {
   const [sortOrder, setSortOrder] = useState<SortOrder>('date_desc');
   const [dateFilter, setDateFilter] = useState('current_month');
 
-  const DURATION_LIMIT = 120000; // Trava de 2 minutos (120s)
+  const DURATION_LIMIT = 120000; // 2 minutos
 
   const fetchData = async () => {
     setIsLoading(true);
     try {
       const res = await fetch('/api/calls');
       const data = await res.json();
-      setCalls(data);
+      // SEGURANÇA: Garante que calls sempre seja um array
+      setCalls(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Erro ao buscar chamadas:", error);
+      setCalls([]);
     } finally {
       setIsLoading(false);
     }
@@ -46,52 +48,53 @@ export default function DashboardPage() {
     fetchData();
   }, []);
 
-  // Lógica de Processamento (Filtragem e Ordenação com Correção de Erro)
   const processedCalls = useMemo(() => {
-    // 1. Desconsiderar visualmente o que tem menos de 2 minutos
+    if (!Array.isArray(calls)) return [];
+
+    // 1. Filtro de duração
     let filtered = calls.filter(call => (call.durationMs || 0) >= DURATION_LIMIT);
 
-    // 2. Filtro de busca
-    filtered = filtered.filter(call => 
-      call.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      call.title.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    // 2. Filtro de busca (com check de segurança para campos nulos)
+    filtered = filtered.filter(call => {
+      const name = call.ownerName?.toLowerCase() || '';
+      const title = call.title?.toLowerCase() || '';
+      const term = searchTerm.toLowerCase();
+      return name.includes(term) || title.includes(term);
+    });
 
-    // 3. Ordenação BLINDADA (Corrige o erro de Date/getTime)
-    const sorted = [...filtered].sort((a, b) => {
+    // 3. Ordenação
+    return [...filtered].sort((a, b) => {
       if (sortOrder === 'score_desc') return (b.nota_spin || 0) - (a.nota_spin || 0);
       if (sortOrder === 'score_asc') return (a.nota_spin || 0) - (b.nota_spin || 0);
-      
-      // Correção: Verifica se a data existe antes de chamar o getTime()
       const dateA = a.analyzedAt ? new Date(a.analyzedAt).getTime() : 0;
       const dateB = b.analyzedAt ? new Date(b.analyzedAt).getTime() : 0;
       return dateB - dateA;
     });
-
-    return sorted;
   }, [calls, searchTerm, sortOrder]);
 
-  // Cálculos para os Mini-Cards superiores
   const avgSpin = calculateAverageSpin(processedCalls);
   const totalCalls = processedCalls.length;
-  const activeSDRs = new Set(processedCalls.map(c => c.ownerName)).size;
+  // SEGURANÇA: Filtra nomes nulos antes de criar o Set
+  const activeSDRs = new Set(processedCalls.map(c => c.ownerName).filter(Boolean)).size;
 
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
         <RefreshCw className="w-6 h-6 animate-spin text-slate-400" />
-        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sincronizando dados...</p>
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">
+          Sincronizando dados...<br/>
+          <span className="opacity-50 font-normal">Isso pode levar alguns segundos</span>
+        </p>
       </div>
     );
   }
 
   return (
     <div className="space-y-10 pb-20 animate-in fade-in duration-700">
-      
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-headline font-bold text-slate-900 tracking-tight">Análises de Chamadas</h1>
-          <p className="text-slate-400 text-sm mt-1">Feed cronológico das avaliações (+2 min) realizadas pela IA.</p>
+          <p className="text-slate-400 text-sm mt-1">Apenas chamadas produtivas (+2 min) avaliadas pela IA.</p>
         </div>
         
         <div className="flex items-center gap-2">
@@ -107,7 +110,6 @@ export default function DashboardPage() {
               <option value="all">Todo o período</option>
             </select>
           </div>
-
           <Button onClick={fetchData} variant="outline" className="rounded-xl border-slate-200 hover:bg-slate-50">
             <RefreshCw className="w-4 h-4 mr-2" /> Atualizar
           </Button>
@@ -117,9 +119,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="border-slate-100 shadow-sm">
           <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-slate-50 rounded-xl text-slate-900">
-              <TrendingUp className="w-6 h-6" />
-            </div>
+            <div className="p-3 bg-slate-50 rounded-xl text-slate-900"><TrendingUp className="w-6 h-6" /></div>
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Média SPIN</p>
               <p className="text-3xl font-headline font-bold text-slate-900">{avgSpin.toFixed(1)}</p>
@@ -129,9 +129,7 @@ export default function DashboardPage() {
 
         <Card className="border-slate-100 shadow-sm">
           <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-slate-50 rounded-xl text-slate-900">
-              <PhoneCall className="w-6 h-6" />
-            </div>
+            <div className="p-3 bg-slate-50 rounded-xl text-slate-900"><PhoneCall className="w-6 h-6" /></div>
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Conectadas (+2m)</p>
               <p className="text-3xl font-headline font-bold text-slate-900">{totalCalls}</p>
@@ -141,9 +139,7 @@ export default function DashboardPage() {
 
         <Card className="border-slate-100 shadow-sm">
           <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-slate-50 rounded-xl text-slate-900">
-              <Users className="w-6 h-6" />
-            </div>
+            <div className="p-3 bg-slate-50 rounded-xl text-slate-900"><Users className="w-6 h-6" /></div>
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">SDRs Ativos</p>
               <p className="text-3xl font-headline font-bold text-slate-900">{activeSDRs}</p>
@@ -169,7 +165,6 @@ export default function DashboardPage() {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-
             <div className="flex items-center bg-white border border-slate-200 rounded-xl px-4 h-12 shadow-sm min-w-[200px]">
               <ArrowDownUp className="w-4 h-4 text-slate-400 mr-3" />
               <select 
@@ -186,9 +181,7 @@ export default function DashboardPage() {
 
           <div className="grid gap-4">
             {processedCalls.length > 0 ? (
-              processedCalls.map(call => (
-                <CallCard key={call.id} call={call} />
-              ))
+              processedCalls.map(call => <CallCard key={call.id} call={call} />)
             ) : (
               <div className="text-center py-20 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-100">
                 <p className="text-slate-400 italic">Nenhuma análise produtiva encontrada.</p>

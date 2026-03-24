@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { SDRCard } from '@/components/dashboard/SDRCard';
-import { getSDRRanking, isWithinPeriod } from '@/lib/metrics';
 import type { SDRCall } from '@/types';
-import { Loader2, Users, Calendar } from 'lucide-react';
+import { Loader2, Users, Calendar, Search } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { 
   Select, 
   SelectContent, 
@@ -17,6 +17,7 @@ export default function SDRsPage() {
   const [calls, setCalls] = useState<SDRCall[]>([]);
   const [period, setPeriod] = useState('month');
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     fetch('/api/calls')
@@ -25,67 +26,91 @@ export default function SDRsPage() {
         setCalls(Array.isArray(data) ? data : []);
         setIsLoading(false);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("Erro ao carregar dados:", err);
         setCalls([]);
         setIsLoading(false);
       });
   }, []);
 
-  // Recalcula o ranking apenas para as chamadas que atendem ao período selecionado
-  const filteredRanking = useMemo(() => {
-    const periodFilteredCalls = calls.filter(call => 
-      isWithinPeriod(call.analyzedAt, period)
-    );
-    return getSDRRanking(periodFilteredCalls);
-  }, [calls, period]);
+  // Agrupamos as chamadas por SDR de forma segura
+  const sdrGroups = useMemo(() => {
+    const groups: Record<string, SDRCall[]> = {};
+    
+    // Filtragem por período (Opcional, se você quiser que os cards reflitam o tempo)
+    calls.forEach(call => {
+      const name = call.ownerName || "Não Identificado";
+      
+      // Filtro de busca por nome
+      if (!name.toLowerCase().includes(searchTerm.toLowerCase())) return;
+
+      if (!groups[name]) {
+        groups[name] = [];
+      }
+      groups[name].push(call);
+    });
+
+    return groups;
+  }, [calls, searchTerm]);
+
+  const sdrNames = useMemo(() => Object.keys(sdrGroups).sort(), [sdrGroups]);
 
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
-        <Loader2 className="w-8 h-8 animate-spin text-slate-200" />
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Calculando performance...</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="space-y-1">
-          <h1 className="text-2xl font-headline font-bold text-slate-900">Performance por SDR</h1>
+          <h1 className="text-3xl font-headline font-bold text-slate-900 tracking-tight">Time de SDRs</h1>
           <p className="text-slate-400 text-sm">Visão consolidada da performance técnica de cada profissional.</p>
         </div>
         
-        <Select value={period} onValueChange={setPeriod}>
-          <SelectTrigger className="w-[180px] h-9 text-xs font-semibold bg-white border-slate-100 shadow-none">
-            <Calendar className="w-3.5 h-3.5 mr-2 text-slate-400" />
-            <SelectValue placeholder="Selecione o período" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="today">Hoje</SelectItem>
-            <SelectItem value="7d">Últimos 7 dias</SelectItem>
-            <SelectItem value="month">Mês atual</SelectItem>
-            <SelectItem value="year">Ano atual</SelectItem>
-            <SelectItem value="all">Todo o histórico</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-3">
+          {/* Busca por Nome */}
+          <div className="relative w-full md:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Input 
+              placeholder="Buscar SDR..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 h-10 bg-white border-slate-200 rounded-xl shadow-sm"
+            />
+          </div>
+
+          <Select value={period} onValueChange={setPeriod}>
+            <SelectTrigger className="w-[180px] h-10 text-xs font-bold bg-white border-slate-200 rounded-xl shadow-sm">
+              <Calendar className="w-3.5 h-3.5 mr-2 text-slate-400" />
+              <SelectValue placeholder="Período" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="today">Hoje</SelectItem>
+              <SelectItem value="7d">Últimos 7 dias</SelectItem>
+              <SelectItem value="month">Mês atual</SelectItem>
+              <SelectItem value="all">Todo o histórico</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      {filteredRanking.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
-          <div className="p-4 bg-slate-50 rounded-full">
-            <Users className="w-6 h-6 text-slate-200" />
-          </div>
-          <p className="text-xs text-slate-400">Nenhum dado encontrado para o período selecionado.</p>
+      {sdrNames.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-100">
+          <Users className="w-10 h-10 text-slate-200 mb-4" />
+          <p className="text-sm text-slate-400 italic">Nenhum SDR encontrado.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {filteredRanking.map((sdr) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {sdrNames.map((name) => (
             <SDRCard 
-              key={sdr.name} 
-              name={sdr.name} 
-              avgSpin={sdr.avgSpin} 
-              callCount={sdr.count} 
+              key={name} 
+              name={name} 
+              calls={sdrGroups[name]} // Agora enviamos o array de chamadas como o SDRCard espera!
             />
           ))}
         </div>

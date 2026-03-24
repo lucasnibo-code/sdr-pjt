@@ -5,6 +5,7 @@ import { SDRCard } from '@/components/dashboard/SDRCard';
 import type { SDRCall } from '@/types';
 import { Loader2, Users, Calendar, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import Link from 'next/link'; // IMPORTANTE: Adicionamos o Link aqui
 import { 
   Select, 
   SelectContent, 
@@ -33,15 +34,11 @@ export default function SDRsPage() {
       });
   }, []);
 
-  // Agrupamos as chamadas por SDR de forma segura
   const sdrGroups = useMemo(() => {
     const groups: Record<string, SDRCall[]> = {};
     
-    // Filtragem por período (Opcional, se você quiser que os cards reflitam o tempo)
     calls.forEach(call => {
       const name = call.ownerName || "Não Identificado";
-      
-      // Filtro de busca por nome
       if (!name.toLowerCase().includes(searchTerm.toLowerCase())) return;
 
       if (!groups[name]) {
@@ -59,7 +56,7 @@ export default function SDRsPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
         <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Calculando performance...</p>
+        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center">Calculando performance...</p>
       </div>
     );
   }
@@ -69,11 +66,10 @@ export default function SDRsPage() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-3xl font-headline font-bold text-slate-900 tracking-tight">Time de SDRs</h1>
-          <p className="text-slate-400 text-sm">Visão consolidada da performance técnica de cada profissional.</p>
+          <p className="text-slate-400 text-sm">Clique no card para ver o histórico detalhado do profissional.</p>
         </div>
         
         <div className="flex items-center gap-3">
-          {/* Busca por Nome */}
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <Input 
@@ -107,11 +103,17 @@ export default function SDRsPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {sdrNames.map((name) => (
-            <SDRCard 
+            /* O SEGREDO ESTÁ AQUI: Link em volta do card */
+            <Link 
               key={name} 
-              name={name} 
-              calls={sdrGroups[name]} // Agora enviamos o array de chamadas como o SDRCard espera!
-            />
+              href={`/dashboard/sdrs/${encodeURIComponent(name)}`}
+              className="block active:scale-95 transition-transform"
+            >
+              <SDRCard 
+                name={name} 
+                calls={sdrGroups[name]} 
+              />
+            </Link>
           ))}
         </div>
       )}

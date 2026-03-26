@@ -102,12 +102,15 @@ export default function DashboardPage() {
     });
   }, [calls, searchTerm, sortOrder]);
 
-  // 🚩 Travas de segurança contra Crash (Divisão por zero ou null)
-  const isSummaryEmpty = summary?.empty === true;
-  const avgSpin = summary && !isSummaryEmpty ? (summary.sum_notes / (summary.valid_calls || 1)) : 0;
-  const totalCalls = summary?.total_calls || 0;
-  const analyzedCount = summary?.valid_calls || 0;
-  const activeSDRsCount = summary?.sdr_ranking ? Object.keys(summary.sdr_ranking).length : 0;
+ // 🚩 Travas de segurança contra Crash (Divisão por zero ou null)
+  // Usamos 'as any' temporariamente para evitar o conflito com a tipagem antiga do types/index.ts
+  const stats = summary as any; 
+  
+  const isSummaryEmpty = stats?.empty === true;
+  const avgSpin = stats && !isSummaryEmpty ? (stats.sum_notes / (stats.valid_calls || 1)) : 0;
+  const totalCalls = stats?.total_calls || 0;
+  const analyzedCount = stats?.valid_calls || 0;
+  const activeSDRsCount = stats?.sdr_ranking ? Object.keys(stats.sdr_ranking).length : 0;
 
   if (isLoading) {
     return (

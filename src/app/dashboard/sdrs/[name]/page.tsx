@@ -22,7 +22,7 @@ import type { SDRCall, DashboardSummary } from '@/types';
 type SortOrder = 'date_desc' | 'score_desc' | 'score_asc';
 
 export default function SDRDetailPage() {
-  // 🚩 AJUSTADO: O parâmetro da sua pasta é [name]
+  // 🚩 O parâmetro da sua pasta no plural é [name]
   const { name } = useParams(); 
   const router = useRouter();
   const decodedName = decodeURIComponent(name as string);
@@ -42,17 +42,19 @@ export default function SDRDetailPage() {
     try {
       const timestamp = Date.now();
       
-      // 🚩 1. BUSCA O RESUMO NO COFRE (Custo: 1 leitura)
+      // 1. BUSCA O RESUMO NO COFRE
       let summaryUrl = `/api/stats/summary?t=${timestamp}&period=${timeFilter}`;
       if (timeFilter === 'custom' && customStartDate && customEndDate) {
         summaryUrl += `&startDate=${customStartDate}&endDate=${customEndDate}`;
       }
+      
       const resSummary = await fetch(summaryUrl);
-      const summaryData = await resSummary.json();
-      setSummary(summaryData);
+      if (resSummary.ok) {
+        const summaryData = await resSummary.json();
+        setSummary(summaryData);
+      }
 
-      // 🚩 2. BUSCA AS ÚLTIMAS 20 DESTE SDR (Custo: 20 leituras)
-      // Filtro feito no Backend para evitar baixar centenas de ligações
+      // 2. BUSCA AS ÚLTIMAS 20 DESTE SDR (Filtro no Backend)
       let callsUrl = `/api/calls?ownerName=${encodeURIComponent(decodedName)}&limit=20&t=${timestamp}`;
       if (timeFilter === 'custom' && customStartDate && customEndDate) {
         callsUrl += `&startDate=${customStartDate}&endDate=${customEndDate}`;
@@ -61,8 +63,10 @@ export default function SDRDetailPage() {
       }
 
       const resCalls = await fetch(callsUrl);
-      const callsData = await resCalls.json();
-      setCalls(Array.isArray(callsData) ? callsData : []);
+      if (resCalls.ok) {
+        const callsData = await resCalls.json();
+        setCalls(Array.isArray(callsData) ? callsData : []);
+      }
 
     } catch (error) {
       console.error("Erro ao carregar perfil do SDR:", error);
@@ -75,16 +79,20 @@ export default function SDRDetailPage() {
     if (decodedName) fetchData();
   }, [decodedName, timeFilter]);
 
-  // Lógica de exibição baseada no Cofre + Lista Limitada
+  // 🚩 Lógica de exibição blindada (Não quebra se o Cofre falhar ou der 404)
   const sdrStats = useMemo(() => {
-    if (!summary || !summary.sdr_ranking || !summary.sdr_ranking[decodedName]) {
+    const stats = summary?.sdr_ranking?.[decodedName];
+
+    if (!stats) {
       return { total: 0, valid: 0, avg: 0 };
     }
-    const stats = summary.sdr_ranking[decodedName];
+
     return {
-      total: stats.total,
-      valid: stats.valid_count,
-      avg: stats.valid_count > 0 ? (stats.sum_notes / stats.valid_count) : 0
+      total: stats.total || 0,
+      valid: stats.valid_count || 0,
+      avg: (stats.valid_count && stats.valid_count > 0) 
+        ? (stats.sum_notes / stats.valid_count) 
+        : 0
     };
   }, [summary, decodedName]);
 
@@ -92,7 +100,7 @@ export default function SDRDetailPage() {
     return [...calls].sort((a, b) => {
       if (sortOrder === 'score_desc') return (Number(b.nota_spin) || 0) - (Number(a.nota_spin) || 0);
       if (sortOrder === 'score_asc') return (Number(a.nota_spin) || 0) - (Number(b.nota_spin) || 0);
-      return 0; // Já vem ordenado por data do banco
+      return 0; 
     });
   }, [calls, sortOrder]);
 

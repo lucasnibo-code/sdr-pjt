@@ -14,21 +14,19 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-// Importando a métrica e calculador de média que ajustamos
+
+// Importando as funções de métricas corretamente
 import { isWithinPeriod, calculateAverageSpin } from '@/lib/metrics'; 
 
 type SortOrder = 'score_desc' | 'score_asc' | 'name_asc';
 
 export default function SDRsPage() {
   const [calls, setCalls] = useState<SDRCall[]>([]);
-  // Padrão: Hoje
   const [period, setPeriod] = useState('today');
-  // Padrão: Maior Nota
   const [sortOrder, setSortOrder] = useState<SortOrder>('score_desc');
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   
-  // Estados do filtro de data customizada
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
 
@@ -36,7 +34,6 @@ export default function SDRsPage() {
     setIsLoading(true);
     let url = `/api/calls?t=${Date.now()}`;
     
-    // Se for data customizada, repassa para a API barrar no backend
     if (period === 'custom' && customStartDate && customEndDate) {
       url += `&startDate=${customStartDate}&endDate=${customEndDate}`;
     }
@@ -56,14 +53,14 @@ export default function SDRsPage() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [period]); // Recarrega se o período mudar
 
-  // 1. Agrupa as chamadas e aplica os filtros
+  // 1. Agrupa as chamadas e aplica os filtros de busca e data
   const sdrGroups = useMemo(() => {
     const groups: Record<string, SDRCall[]> = {};
     
     calls.forEach(call => {
-      // Filtro de Período (Agora aceita Customizado)
+      // Filtro de Período
       if (period === 'custom') {
         if (customStartDate && customEndDate && !isWithinPeriod(call.updatedAt, { start: customStartDate, end: customEndDate })) {
           return;
@@ -72,7 +69,7 @@ export default function SDRsPage() {
         return;
       }
 
-      // Filtro de Busca
+      // Filtro de Busca por Nome
       const name = call.ownerName || "Não Identificado";
       if (!name.toLowerCase().includes(searchTerm.toLowerCase())) return;
 
@@ -83,14 +80,13 @@ export default function SDRsPage() {
     return groups;
   }, [calls, searchTerm, period, customStartDate, customEndDate]);
 
-  // 2. ORDENAÇÃO INTELIGENTE DOS SDRS (Por Nota ou Alfabética)
+  // 2. Ordenação dos nomes dos SDRs
   const sdrNames = useMemo(() => {
     const names = Object.keys(sdrGroups);
     
     return names.sort((a, b) => {
       if (sortOrder === 'name_asc') return a.localeCompare(b);
       
-      // Calcula a média exata de cada um para comparar
       const callsA = sdrGroups[a].filter(c => c.processingStatus === 'DONE');
       const callsB = sdrGroups[b].filter(c => c.processingStatus === 'DONE');
       const avgA = calculateAverageSpin(callsA);
@@ -104,7 +100,9 @@ export default function SDRsPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
         <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center">Calculando performance...</p>
+        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center">
+          Calculando performance do time...
+        </p>
       </div>
     );
   }
@@ -114,7 +112,7 @@ export default function SDRsPage() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-3xl font-headline font-bold text-slate-900 tracking-tight">Time de SDRs</h1>
-          <p className="text-slate-400 text-sm">Clique no card para ver o histórico detalhado do profissional.</p>
+          <p className="text-slate-400 text-sm font-medium">Análise de performance individual baseada no período selecionado.</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3">
@@ -128,7 +126,6 @@ export default function SDRsPage() {
             />
           </div>
 
-          {/* Filtro de Ordem */}
           <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 h-10 shadow-sm min-w-[160px]">
             <ArrowDownUp className="w-4 h-4 text-slate-400 mr-2" />
             <select 
@@ -156,7 +153,6 @@ export default function SDRsPage() {
             </SelectContent>
           </Select>
 
-          {/* Inputs Customizados */}
           {period === 'custom' && (
             <div className="flex items-center gap-2 animate-in zoom-in duration-200 bg-white border border-slate-200 p-1 rounded-xl shadow-sm">
               <input type="date" value={customStartDate} onChange={e => setCustomStartDate(e.target.value)} className="h-8 text-xs font-medium text-slate-600 rounded-lg px-2 outline-none"/>
@@ -173,19 +169,28 @@ export default function SDRsPage() {
       {sdrNames.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-100">
           <Users className="w-10 h-10 text-slate-200 mb-4" />
-          <p className="text-sm text-slate-400 italic">Nenhum registro encontrado para este período ou busca.</p>
+          <p className="text-sm text-slate-400 italic">Nenhum SDR encontrado com estes filtros.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {sdrNames.map((name) => (
-            <Link 
-              key={name} 
-              href={`/dashboard/sdrs/${encodeURIComponent(name)}`}
-              className="block active:scale-95 transition-transform"
-            >
-              <SDRCard name={name} calls={sdrGroups[name]} />
-            </Link>
-          ))}
+          {sdrNames.map((name) => {
+            // Prepara o objeto de stats para o SDRCard
+            const sdrCalls = sdrGroups[name];
+            const validCalls = sdrCalls.filter(c => c.status_final !== 'NAO_SE_APLICA');
+            const stats = {
+              total: sdrCalls.length,
+              valid_count: validCalls.length,
+              sum_notes: validCalls.reduce((acc, c) => acc + (Number(c.nota_spin) || 0), 0)
+            };
+
+            return (
+              <SDRCard 
+                key={name} 
+                name={name} 
+                stats={stats} 
+              />
+            );
+          })}
         </div>
       )}
     </div>

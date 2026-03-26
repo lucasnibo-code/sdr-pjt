@@ -13,7 +13,8 @@ export async function GET(request: Request) {
   const query = searchParams.toString();
   const cleanBaseUrl = baseUrl.replace(/\/$/, '');
 
-  // Mantemos as duas opções de rota
+  // Mantemos as duas opções de rota. 
+  // Nota: Baseado no seu calls.ts, a rota correta é /api/calls.
   const endpoints = [
     `${cleanBaseUrl}/api/calls?${query}`,
     `${cleanBaseUrl}/calls?${query}`
@@ -21,7 +22,7 @@ export async function GET(request: Request) {
 
   for (const url of endpoints) {
     try {
-      console.log(`📡 Tentando Render em: ${url}`);
+      console.log(`📡 Dashboard solicitando dados em: ${url}`);
       const res = await fetch(url, {
         headers: { 
           'Content-Type': 'application/json',
@@ -30,17 +31,34 @@ export async function GET(request: Request) {
         next: { revalidate: 0 }
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        console.log(`✅ Sucesso! Recebidos ${data.length} itens de ${url}`);
-        return NextResponse.json(data);
+      // Se a resposta não for ok (tipo um 404), tentamos o próximo endpoint
+      if (!res.ok) {
+        console.warn(`⚠️ Endpoint ${url} retornou status ${res.status}`);
+        continue;
       }
+
+      const data = await res.json();
+
+      // 🚩 AJUSTE CRÍTICO: 
+      // Se o backend retornou um objeto de erro (como o RESOURCE_EXHAUSTED do Firebase),
+      // repassamos ele para o Front saber que a cota estourou.
+      if (data && data.error && (data.error.includes('RESOURCE_EXHAUSTED') || data.success === false)) {
+        console.error(`🚨 Erro de Cota ou Backend detectado em ${url}:`, data.error);
+        return NextResponse.json(data, { status: 429 }); 
+      }
+
+      // Se chegamos aqui, os dados são válidos (provavelmente um array de ligações)
+      console.log(`✅ Sucesso! Dados recebidos de ${url}`);
+      return NextResponse.json(data);
       
-      console.warn(`⚠️ Endpoint ${url} retornou status ${res.status}`);
     } catch (err: any) {
-      console.error(`❌ Falha de rede em ${url}:`, err.message);
+      console.error(`❌ Falha de rede/conexão em ${url}:`, err.message);
     }
   }
 
-  return NextResponse.json({ error: 'O servidor Render não retornou dados válidos.' }, { status: 502 });
+  // Se nenhum endpoint funcionou ou retornou dados
+  return NextResponse.json(
+    { error: 'O servidor Render não retornou dados válidos. Verifique a cota do Firebase.' }, 
+    { status: 502 }
+  );
 }

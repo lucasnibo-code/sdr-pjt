@@ -1,198 +1,274 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
-import { SDRCard } from '@/components/dashboard/SDRCard';
-import type { SDRCall } from '@/types';
-import { Loader2, Users, Calendar, Search, ArrowDownUp, RefreshCw } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import Link from 'next/link';
 import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from '@/components/ui/select';
+  TrendingUp, 
+  PhoneCall, 
+  Users, 
+  Search, 
+  Calendar, 
+  RefreshCw,
+  ArrowDownUp,
+  AlertCircle
+} from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { CallCard } from '@/components/dashboard/CallCard';
+import { SDRRanking } from '@/components/dashboard/SDRRanking';
+import type { SDRCall, DashboardSummary } from '@/types';
 
-// Importando as funções de métricas corretamente
-import { isWithinPeriod, calculateAverageSpin } from '@/lib/metrics'; 
+type SortOrder = 'date_desc' | 'score_desc' | 'score_asc';
 
-type SortOrder = 'score_desc' | 'score_asc' | 'name_asc';
-
-export default function SDRsPage() {
+export default function DashboardPage() {
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [calls, setCalls] = useState<SDRCall[]>([]);
-  const [period, setPeriod] = useState('today');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('score_desc');
-  const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null); // 🚩 Novo estado para erros
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  const [sortOrder, setSortOrder] = useState<SortOrder>('score_desc');
+  const [dateFilter, setDateFilter] = useState('today');
   
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
 
-  const fetchData = () => {
+  const fetchData = async () => {
     setIsLoading(true);
-    let url = `/api/calls?t=${Date.now()}`;
-    
-    if (period === 'custom' && customStartDate && customEndDate) {
-      url += `&startDate=${customStartDate}&endDate=${customEndDate}`;
-    }
+    setError(null); // Limpa erros anteriores
+    try {
+      const timestamp = Date.now();
+      
+      // 1. Montagem das URLs
+      let summaryUrl = `/api/stats/summary?t=${timestamp}&period=${dateFilter}`;
+      let callsUrl = `/api/calls?limit=50&t=${timestamp}`; // Limite ajustado com o backend
+      
+      if (dateFilter === 'custom' && customStartDate && customEndDate) {
+        summaryUrl += `&startDate=${customStartDate}&endDate=${customEndDate}`;
+        callsUrl += `&startDate=${customStartDate}&endDate=${customEndDate}`;
+      } else {
+        callsUrl += `&period=${dateFilter}`;
+      }
 
-    fetch(url, { cache: 'no-store' })
-      .then(res => res.json())
-      .then(data => {
-        setCalls(Array.isArray(data) ? data : []);
-        setIsLoading(false);
-      })
-      .catch((err) => {
-        console.error("Erro ao carregar dados:", err);
-        setCalls([]);
-        setIsLoading(false);
-      });
+      // 2. Chamadas em Paralelo para maior velocidade
+      const [resSummary, resCalls] = await Promise.all([
+        fetch(summaryUrl),
+        fetch(callsUrl)
+      ]);
+
+      const summaryData = await resSummary.json();
+      const callsData = await resCalls.json();
+
+      // 🚩 3. Tratamento explícito de erros vindos do Proxy
+      if (!resSummary.ok || summaryData.error) {
+        throw new Error(summaryData.error || 'Falha ao carregar as métricas do Cofre.');
+      }
+      
+      if (!resCalls.ok || callsData.error) {
+        if (callsData.error?.includes('RESOURCE_EXHAUSTED')) {
+          throw new Error('Atenção: A cota diária do banco de dados (Firebase) foi atingida.');
+        }
+        throw new Error(callsData.error || 'Falha ao carregar a lista de chamadas.');
+      }
+
+      setSummary(summaryData);
+      setCalls(Array.isArray(callsData) ? callsData : []);
+
+    } catch (err: any) {
+      console.error("❌ Erro na sincronização do Dashboard:", err);
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
     fetchData();
-  }, [period]); // Recarrega se o período mudar
+  }, [dateFilter]); 
 
-  // 1. Agrupa as chamadas e aplica os filtros de busca e data
-  const sdrGroups = useMemo(() => {
-    const groups: Record<string, SDRCall[]> = {};
-    
-    calls.forEach(call => {
-      // Filtro de Período
-      if (period === 'custom') {
-        if (customStartDate && customEndDate && !isWithinPeriod(call.updatedAt, { start: customStartDate, end: customEndDate })) {
-          return;
-        }
-      } else if (!isWithinPeriod(call.updatedAt, period)) {
-        return;
-      }
-
-      // Filtro de Busca por Nome
-      const name = call.ownerName || "Não Identificado";
-      if (!name.toLowerCase().includes(searchTerm.toLowerCase())) return;
-
-      if (!groups[name]) groups[name] = [];
-      groups[name].push(call);
+  const filteredCalls = useMemo(() => {
+    let result = [...calls];
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter(c => 
+        c.ownerName?.toLowerCase().includes(term) || 
+        c.title?.toLowerCase().includes(term)
+      );
+    }
+    return result.sort((a, b) => {
+      if (sortOrder === 'score_desc') return (b.nota_spin || 0) - (a.nota_spin || 0);
+      if (sortOrder === 'score_asc') return (a.nota_spin || 0) - (b.nota_spin || 0);
+      return 0; 
     });
+  }, [calls, searchTerm, sortOrder]);
 
-    return groups;
-  }, [calls, searchTerm, period, customStartDate, customEndDate]);
-
-  // 2. Ordenação dos nomes dos SDRs
-  const sdrNames = useMemo(() => {
-    const names = Object.keys(sdrGroups);
-    
-    return names.sort((a, b) => {
-      if (sortOrder === 'name_asc') return a.localeCompare(b);
-      
-      const callsA = sdrGroups[a].filter(c => c.processingStatus === 'DONE');
-      const callsB = sdrGroups[b].filter(c => c.processingStatus === 'DONE');
-      const avgA = calculateAverageSpin(callsA);
-      const avgB = calculateAverageSpin(callsB);
-      
-      return sortOrder === 'score_desc' ? avgB - avgA : avgA - avgB;
-    });
-  }, [sdrGroups, sortOrder]);
+  // 🚩 Travas de segurança contra Crash (Divisão por zero ou null)
+  const isSummaryEmpty = summary?.empty === true;
+  const avgSpin = summary && !isSummaryEmpty ? (summary.sum_notes / (summary.valid_calls || 1)) : 0;
+  const totalCalls = summary?.total_calls || 0;
+  const analyzedCount = summary?.valid_calls || 0;
+  const activeSDRsCount = summary?.sdr_ranking ? Object.keys(summary.sdr_ranking).length : 0;
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center">
-          Calculando performance do time...
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Acessando Banco de Dados...</p>
+      </div>
+    );
+  }
+
+  // 🚩 TELA DE ERRO AMIGÁVEL
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 animate-in fade-in zoom-in duration-300">
+        <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-2">
+          <AlertCircle className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-headline font-bold text-slate-800">Problema de Conexão</h2>
+        <p className="text-sm text-slate-500 text-center max-w-md bg-white border border-slate-200 p-4 rounded-xl shadow-sm">
+          {error}
         </p>
+        <Button onClick={fetchData} className="mt-4 bg-slate-900 hover:bg-slate-800 rounded-xl">
+          <RefreshCw className="w-4 h-4 mr-2" /> Tentar Novamente
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-headline font-bold text-slate-900 tracking-tight">Time de SDRs</h1>
-          <p className="text-slate-400 text-sm font-medium">Análise de performance individual baseada no período selecionado.</p>
+    <div className="space-y-10 pb-20 animate-in fade-in duration-700">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-headline font-bold text-slate-900 tracking-tight">Performance Geral</h1>
+          <p className="text-slate-400 text-sm mt-1">Dados consolidados da operação SDR.</p>
         </div>
         
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative w-full md:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <Input 
-              placeholder="Buscar SDR..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 h-10 bg-white border-slate-200 rounded-xl shadow-sm focus-visible:ring-indigo-100"
-            />
-          </div>
-
-          <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 h-10 shadow-sm min-w-[160px]">
-            <ArrowDownUp className="w-4 h-4 text-slate-400 mr-2" />
-            <select 
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value as SortOrder)}
-              className="text-xs font-bold text-slate-700 bg-transparent outline-none cursor-pointer w-full"
-            >
-              <option value="score_desc">Maior Nota</option>
-              <option value="score_asc">Menor Nota</option>
-              <option value="name_asc">Ordem Alfabética</option>
-            </select>
-          </div>
-
-          <Select value={period} onValueChange={setPeriod}>
-            <SelectTrigger className="w-[160px] h-10 text-xs font-bold bg-white border-slate-200 rounded-xl shadow-sm">
-              <Calendar className="w-3.5 h-3.5 mr-2 text-slate-400" />
-              <SelectValue placeholder="Período" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="today">Hoje</SelectItem>
-              <SelectItem value="7d">Últimos 7 dias</SelectItem>
-              <SelectItem value="month">Mês atual</SelectItem>
-              <SelectItem value="all">Todo o histórico</SelectItem>
-              <SelectItem value="custom">Personalizado...</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {period === 'custom' && (
-            <div className="flex items-center gap-2 animate-in zoom-in duration-200 bg-white border border-slate-200 p-1 rounded-xl shadow-sm">
-              <input type="date" value={customStartDate} onChange={e => setCustomStartDate(e.target.value)} className="h-8 text-xs font-medium text-slate-600 rounded-lg px-2 outline-none"/>
-              <span className="text-slate-300 text-[10px] font-bold">ATÉ</span>
-              <input type="date" value={customEndDate} onChange={e => setCustomEndDate(e.target.value)} className="h-8 text-xs font-medium text-slate-600 rounded-lg px-2 outline-none"/>
-              <Button onClick={fetchData} variant="default" size="sm" className="h-8 rounded-lg px-3 bg-indigo-600 hover:bg-indigo-700">
-                <RefreshCw className="w-3 h-3 text-white" />
-              </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm">
+            <div className="flex items-center h-8">
+              <Calendar className="w-4 h-4 text-slate-400 mr-2" />
+              <select 
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="text-sm font-bold text-slate-700 bg-transparent outline-none cursor-pointer"
+              >
+                <option value="today">Hoje</option>
+                <option value="7d">Últimos 7 dias</option>
+                <option value="month">Mês atual</option>
+                <option value="all">Todo o período</option>
+                <option value="custom">Personalizado...</option>
+              </select>
             </div>
-          )}
+            
+            {dateFilter === 'custom' && (
+              <div className="flex items-center gap-2 sm:ml-2 sm:pl-3 sm:border-l border-slate-100 animate-in zoom-in duration-200">
+                <input 
+                  type="date" 
+                  value={customStartDate} 
+                  onChange={e => setCustomStartDate(e.target.value)} 
+                  className="h-8 text-xs font-medium text-slate-600 rounded-lg px-2 outline-none"
+                />
+                <span className="text-slate-300 text-[10px] font-bold">ATÉ</span>
+                <input 
+                  type="date" 
+                  value={customEndDate} 
+                  onChange={e => setCustomEndDate(e.target.value)} 
+                  className="h-8 text-xs font-medium text-slate-600 rounded-lg px-2 outline-none"
+                />
+                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={fetchData}><RefreshCw className="w-3 h-3"/></Button>
+              </div>
+            )}
+          </div>
+          
+          <Button onClick={fetchData} variant="outline" className="h-11 rounded-xl border-slate-200 hover:bg-slate-50">
+            <RefreshCw className="w-4 h-4 mr-2" /> Atualizar
+          </Button>
         </div>
       </div>
 
-      {sdrNames.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-100">
-          <Users className="w-10 h-10 text-slate-200 mb-4" />
-          <p className="text-sm text-slate-400 italic">Nenhum SDR encontrado com estes filtros.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {sdrNames.map((name) => {
-            // Prepara o objeto de stats para o SDRCard
-            const sdrCalls = sdrGroups[name];
-            const validCalls = sdrCalls.filter(c => c.status_final !== 'NAO_SE_APLICA');
-            const stats = {
-              total: sdrCalls.length,
-              valid_count: validCalls.length,
-              sum_notes: validCalls.reduce((acc, c) => acc + (Number(c.nota_spin) || 0), 0)
-            };
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="border-slate-100 shadow-sm group">
+          <CardContent className="p-6 flex items-center gap-4">
+            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl group-hover:scale-110 transition-transform"><TrendingUp className="w-6 h-6" /></div>
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Média SPIN (Período)</p>
+              <p className="text-3xl font-headline font-bold text-slate-900">{avgSpin > 0 ? avgSpin.toFixed(1) : "--"}</p>
+            </div>
+          </CardContent>
+        </Card>
 
-            return (
-              <SDRCard 
-                key={name} 
-                name={name} 
-                stats={stats} 
-              />
-            );
-          })}
+        <Card className="border-slate-100 shadow-sm">
+          <CardContent className="p-6 flex items-center gap-4">
+            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><PhoneCall className="w-6 h-6" /></div>
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Volume Total</p>
+              <p className="text-3xl font-headline font-bold text-slate-900">{totalCalls}</p>
+              <p className="text-[9px] text-emerald-500 font-bold uppercase mt-1">{analyzedCount} análises concluídas</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-100 shadow-sm">
+          <CardContent className="p-6 flex items-center gap-4">
+            <div className="p-3 bg-amber-50 text-amber-600 rounded-xl"><Users className="w-6 h-6" /></div>
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">SDRs Ativos</p>
+              <p className="text-3xl font-headline font-bold text-slate-900">{activeSDRsCount}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <div className="space-y-4">
+          <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Ranking de Performance</h3>
+          <SDRRanking summary={summary} /> 
         </div>
-      )}
+
+        <div className="lg:col-span-3 space-y-6">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input 
+                placeholder="Pesquisar nas chamadas recentes..." 
+                className="pl-11 h-12 bg-white border-slate-100 rounded-xl shadow-sm"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center bg-white border border-slate-200 rounded-xl px-4 h-12 shadow-sm min-w-[200px]">
+              <ArrowDownUp className="w-4 h-4 text-slate-400 mr-3" />
+              <select 
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value as SortOrder)}
+                className="text-sm font-bold text-slate-700 bg-transparent outline-none cursor-pointer w-full"
+              >
+                <option value="score_desc">Maior Nota</option>
+                <option value="score_asc">Menor Nota</option>
+                <option value="date_desc">Mais Recentes</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-2 mb-4 bg-slate-50 border border-slate-100 rounded-lg p-3 flex items-center gap-3">
+             <AlertCircle className="w-4 h-4 text-slate-400" />
+             <p className="text-slate-600 text-[11px] font-medium">
+               Exibindo o feed limitado às {calls.length} chamadas mais recentes para otimização de velocidade e cota de dados.
+             </p>
+          </div>
+
+          <div className="grid gap-4">
+            {filteredCalls.length > 0 ? (
+              filteredCalls.map(call => <CallCard key={call.id} call={call} />)
+            ) : (
+              <div className="text-center py-20 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
+                <p className="text-slate-500 font-medium">Nenhuma chamada encontrada neste período.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -4,31 +4,29 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(
   request: Request,
-  { params }: { params: any }
+  { params }: { params: Promise<{ id: string }> } // Tipagem correta para Next.js 15
 ) {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
     
     if (!baseUrl) {
-      console.error("❌ Erro: NEXT_PUBLIC_API_BASE_URL não definida.");
-      return NextResponse.json({ debug: "Erro: Variável NEXT_PUBLIC_API_BASE_URL não encontrada" }, { status: 500 });
+      console.error("🚨 Erro: NEXT_PUBLIC_API_BASE_URL não definida na Vercel.");
+      return NextResponse.json({ debug: "Erro: Variável de ambiente ausente" }, { status: 500 });
     }
 
-    // 🚩 Suporte ao Next.js 15: params agora é uma Promise e deve ser aguardada
-    const resolvedParams = await params;
-    const id = resolvedParams?.id;
+    // 🚩 Suporte ao Next.js 15: params deve ser aguardado
+    const { id } = await params;
 
     if (!id) {
-      return NextResponse.json({ debug: "Erro: ID não informado na URL" }, { status: 400 });
+      return NextResponse.json({ debug: "Erro: ID da chamada não informado" }, { status: 400 });
     }
 
     const cleanBaseUrl = baseUrl.replace(/\/$/, '');
     
-    // 🚩 AJUSTE CRÍTICO: Agora pedimos apenas UM ID para o backend. 
-    // Removemos o "limit=3000" que matava sua cota.
+    // 🚩 BUSCA DIRETA: Pedimos apenas o ID específico ao backend no Render
     const targetUrl = `${cleanBaseUrl}/api/calls/${id}`;
 
-    console.log(`📡 Buscando DETALHE ÚNICO do ID ${id} em: ${targetUrl}`);
+    console.log(`📡 Proxy Call: Buscando detalhe único do ID ${id} no Render...`);
 
     const response = await fetch(targetUrl, {
       method: 'GET',
@@ -36,33 +34,34 @@ export async function GET(
         'Content-Type': 'application/json',
         'x-webhook-secret': process.env.WEBHOOK_SECRET || ''
       },
-      next: { revalidate: 0 }, 
+      cache: 'no-store' // Garante dados sempre frescos
     });
 
+    // Tratamento de Resposta Não-OK
     if (!response.ok) {
-      // Se o backend disser que não achou (404), repassamos o erro limpo
       if (response.status === 404) {
-        return NextResponse.json({ debug: "Chamada não encontrada no banco" }, { status: 404 });
+        return NextResponse.json({ debug: "Chamada não encontrada no banco de dados" }, { status: 404 });
       }
-      return NextResponse.json({ debug: "O servidor de API falhou", status: response.status }, { status: 502 });
+      const errorData = await response.text();
+      return NextResponse.json({ debug: "O servidor backend falhou", detalhes: errorData }, { status: response.status });
     }
 
     const data = await response.json();
 
-    // 🚩 TRATAMENTO DE ERRO DE COTA
+    // 🚩 TRATAMENTO DE COTA (Firebase RESOURCE_EXHAUSTED)
     if (data && data.error && data.error.includes('RESOURCE_EXHAUSTED')) {
-      return NextResponse.json(data, { status: 429 });
+      console.error("🚨 Cota de leitura do Firebase atingida!");
+      return NextResponse.json({ error: "Limite de consultas atingido. Tente novamente mais tarde." }, { status: 429 });
     }
 
-    // Como agora o backend já retorna o objeto direto (ou deveria), 
-    // não precisamos mais do .find() pesado.
-    const found = data.call || data; 
+    // Retorna a chamada encontrada (suportando diferentes formatos de retorno do backend)
+    const callData = data.call || data;
 
-    console.log(`✅ Detalhe da call ${id} entregue com sucesso.`);
-    return NextResponse.json(found);
+    console.log(`✅ Detalhe da call ${id} entregue.`);
+    return NextResponse.json(callData);
 
   } catch (error: any) {
-    console.error("❌ Erro fatal na rota de API de Detalhe:", error.message);
+    console.error("❌ Erro fatal no Proxy de Detalhe:", error.message);
     return NextResponse.json({ 
       debug: "Erro interno no Proxy da API",
       mensagem: error.message 

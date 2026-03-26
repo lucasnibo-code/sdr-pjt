@@ -4,7 +4,6 @@ import {
   User, 
   TrendingUp, 
   Phone, 
-  Target, 
   ChevronRight
 } from 'lucide-react';
 import Link from 'next/link';
@@ -14,18 +13,13 @@ import type { SDRRankingEntry } from '@/types';
 interface SDRCardProps {
   name: string;
   stats: SDRRankingEntry;
-  index?: number; // Para mostrar a posição no ranking (1º, 2º...)
+  index?: number;
 }
 
 export function SDRCard({ name, stats, index }: SDRCardProps) {
   // Cálculo da média vindo direto do Cofre
   const avgSpin = stats.valid_count > 0 ? (stats.sum_notes / stats.valid_count) : 0;
   
-  // Taxa de Aproveitamento (Analisadas / Total)
-  const conversionRate = stats.total > 0 
-    ? Math.round((stats.valid_count / stats.total) * 100) 
-    : 0;
-
   // Cores baseadas na nota
   const getPerformanceColor = (score: number) => {
     if (score >= 8) return "text-emerald-500 border-emerald-100 bg-emerald-50";
@@ -37,7 +31,6 @@ export function SDRCard({ name, stats, index }: SDRCardProps) {
 
   return (
     <Link 
-      // 🚩 ROTA AJUSTADA: Agora aponta para /sdrs/ (plural) conforme sua pasta
       href={`/dashboard/sdrs/${encodeURIComponent(name)}`}
       className="block group"
     >
@@ -69,9 +62,6 @@ export function SDRCard({ name, stats, index }: SDRCardProps) {
                 <span className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
                   <Phone className="w-3 h-3" /> {stats.total} chamadas
                 </span>
-                <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-500">
-                  <Target className="w-3 h-3" /> {conversionRate}% produtivo
-                </span>
               </div>
             </div>
           </div>
@@ -90,18 +80,6 @@ export function SDRCard({ name, stats, index }: SDRCardProps) {
             </div>
             <ChevronRight className="w-5 h-5 text-slate-200 group-hover:text-indigo-400 group-hover:translate-x-1 transition-all" />
           </div>
-
-        </div>
-
-        {/* Mini barra de progresso (Visual de performance) */}
-        <div className="mt-4 w-full h-1.5 bg-slate-50 rounded-full overflow-hidden">
-          <div 
-            className={cn(
-              "h-full rounded-full transition-all duration-1000",
-              avgSpin >= 8 ? "bg-emerald-400" : avgSpin >= 5 ? "bg-amber-400" : "bg-rose-400"
-            )}
-            style={{ width: `${(avgSpin / 10) * 100}%` }}
-          />
         </div>
       </div>
     </Link>

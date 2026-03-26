@@ -21,8 +21,8 @@ import {
   HelpCircle,
   MessageSquare,
   MinusCircle,
-  Hourglass,
-  RefreshCw // 🚩 ADICIONE ESTA LINHA
+  RefreshCw,
+  SearchX
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -44,6 +44,8 @@ export default function CallDetailPage() {
 
   useEffect(() => {
     const loadCall = async () => {
+      if (!routeId) return;
+      
       try {
         setIsLoading(true);
         setError(null);
@@ -55,29 +57,27 @@ export default function CallDetailPage() {
         const data = await res.json();
 
         if (!res.ok) {
-          throw new Error(data.error || 'Falha ao buscar dados');
+          // Se for 404 ou erro de cota, capturamos a mensagem vinda do Proxy
+          throw new Error(data.debug || data.error || 'Não foi possível carregar esta análise.');
         }
 
         setCall(data);
 
       } catch (err: any) {
         console.error("Erro ao carregar chamada:", err);
-        setError(err.message || 'Erro ao carregar os detalhes da chamada.');
+        setError(err.message);
       } finally {
         setIsLoading(false);
       }
     };
 
-    if (routeId) {
-      loadCall();
-    }
+    loadCall();
   }, [routeId]);
 
-  // 🚩 Formatador Robusto para Datas do Firebase
+  // Formatador Robusto para Datas do Firebase (seconds/nanoseconds)
   const formatDate = (dateInput: any) => {
     if (!dateInput) return 'Data não disponível';
-    const rawDate = dateInput?._seconds || dateInput?.seconds || dateInput;
-    const seconds = typeof rawDate === 'number' ? rawDate : (rawDate?._seconds || rawDate?.seconds || null);
+    const seconds = dateInput?._seconds || dateInput?.seconds || (typeof dateInput === 'number' ? dateInput : null);
     
     let date: Date;
     if (seconds) {
@@ -86,7 +86,7 @@ export default function CallDetailPage() {
       date = new Date(dateInput);
     }
     
-    if (isNaN(date.getTime())) return 'Data inválida';
+    if (isNaN(date.getTime())) return 'Data não disponível';
 
     return date.toLocaleDateString('pt-BR', {
       day: '2-digit',
@@ -135,7 +135,7 @@ export default function CallDetailPage() {
           color: 'text-slate-400',
           bg: 'bg-slate-50',
           border: 'border-slate-100',
-          label: 'Não Identificado'
+          label: 'Pendente'
         };
     }
   };
@@ -151,12 +151,25 @@ export default function CallDetailPage() {
     );
   }
 
+  // 🚩 TRATAMENTO DE ERRO AMIGÁVEL
   if (error || !call) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 px-6">
-        <p className="text-sm text-red-500 font-medium">{error || 'Chamada não encontrada'}</p>
-        <Button variant="outline" size="sm" onClick={() => router.push('/dashboard/calls')}>
-          Voltar para a lista
+      <div className="flex flex-col items-center justify-center py-24 text-center space-y-6 px-6 max-w-md mx-auto">
+        <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center">
+          <SearchX className="w-8 h-8 text-slate-300" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-lg font-bold text-slate-900">Análise não encontrada</h2>
+          <p className="text-sm text-slate-500 leading-relaxed">
+            {error || 'Os detalhes desta chamada ainda não foram processados ou o registro foi removido.'}
+          </p>
+        </div>
+        <Button 
+          variant="outline" 
+          className="rounded-xl border-slate-200 font-bold uppercase text-[10px] tracking-widest"
+          onClick={() => router.push('/dashboard')}
+        >
+          <ArrowLeft className="w-3.5 h-3.5 mr-2" /> Voltar ao Dashboard
         </Button>
       </div>
     );

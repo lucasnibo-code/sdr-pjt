@@ -10,7 +10,6 @@ import {
   TrendingUp, 
   Calendar, 
   ArrowDownUp, 
-  PhoneIncoming,
   Hourglass,
   RefreshCw,
   AlertCircle
@@ -22,7 +21,6 @@ import type { SDRCall, DashboardSummary } from '@/types';
 type SortOrder = 'date_desc' | 'score_desc' | 'score_asc';
 
 export default function SDRDetailPage() {
-  // 🚩 O parâmetro da sua pasta no plural é [name]
   const { name } = useParams(); 
   const router = useRouter();
   const decodedName = decodeURIComponent(name as string);
@@ -42,19 +40,18 @@ export default function SDRDetailPage() {
     try {
       const timestamp = Date.now();
       
-      // 1. BUSCA O RESUMO NO COFRE
+      // 1. Busca o Resumo (Cofre)
       let summaryUrl = `/api/stats/summary?t=${timestamp}&period=${timeFilter}`;
       if (timeFilter === 'custom' && customStartDate && customEndDate) {
         summaryUrl += `&startDate=${customStartDate}&endDate=${customEndDate}`;
       }
-      
       const resSummary = await fetch(summaryUrl);
       if (resSummary.ok) {
         const summaryData = await resSummary.json();
         setSummary(summaryData);
       }
 
-      // 2. BUSCA AS ÚLTIMAS 20 DESTE SDR (Filtro no Backend)
+      // 2. Busca as Últimas 20 (Lista)
       let callsUrl = `/api/calls?ownerName=${encodeURIComponent(decodedName)}&limit=20&t=${timestamp}`;
       if (timeFilter === 'custom' && customStartDate && customEndDate) {
         callsUrl += `&startDate=${customStartDate}&endDate=${customEndDate}`;
@@ -79,17 +76,17 @@ export default function SDRDetailPage() {
     if (decodedName) fetchData();
   }, [decodedName, timeFilter]);
 
-  // 🚩 Lógica de exibição blindada (Não quebra se o Cofre falhar ou der 404)
+  // 🚩 BLINDAGEM DEFINITIVA: Não quebra se o summary for null ou o SDR não existir no ranking
   const sdrStats = useMemo(() => {
-    const stats = summary?.sdr_ranking?.[decodedName];
+    const ranking = summary?.sdr_ranking;
+    const stats = ranking ? ranking[decodedName] : null;
 
     if (!stats) {
-      return { total: 0, valid: 0, avg: 0 };
+      return { total: 0, avg: 0 };
     }
 
     return {
       total: stats.total || 0,
-      valid: stats.valid_count || 0,
       avg: (stats.valid_count && stats.valid_count > 0) 
         ? (stats.sum_notes / stats.valid_count) 
         : 0
@@ -134,8 +131,9 @@ export default function SDRDetailPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="bg-white border border-slate-100 rounded-xl p-4 flex flex-col items-center min-w-[130px] shadow-sm">
+          {/* CARDS TOTAIS (Apenas Média e Volume) */}
+          <div className="flex gap-3">
+            <div className="bg-white border border-slate-100 rounded-xl p-4 flex flex-col items-center min-w-[140px] shadow-sm">
               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
                 <TrendingUp className="w-3 h-3 text-amber-500" /> Média SPIN
               </span>
@@ -144,18 +142,11 @@ export default function SDRDetailPage() {
               </span>
             </div>
 
-            <div className="bg-white border border-slate-100 rounded-xl p-4 flex flex-col items-center min-w-[130px] shadow-sm">
+            <div className="bg-white border border-slate-100 rounded-xl p-4 flex flex-col items-center min-w-[140px] shadow-sm">
               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
-                <PhoneCall className="w-3 h-3 text-slate-300" /> Tentativas
+                <PhoneCall className="w-3 h-3 text-slate-300" /> Volume Total
               </span>
               <span className="text-2xl font-headline font-bold text-slate-900">{sdrStats.total}</span>
-            </div>
-
-            <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4 flex flex-col items-center min-w-[130px] shadow-sm">
-              <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
-                <PhoneIncoming className="w-3 h-3 text-indigo-500" /> Produtivas
-              </span>
-              <span className="text-2xl font-headline font-bold text-indigo-700">{sdrStats.valid}</span>
             </div>
           </div>
         </div>
@@ -163,6 +154,7 @@ export default function SDRDetailPage() {
 
       <Separator className="bg-slate-100" />
 
+      {/* FILTROS E ATIVIDADES */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
         <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2">
           Últimas Atividades 
@@ -208,7 +200,7 @@ export default function SDRDetailPage() {
           <p className="text-xs font-bold text-amber-800 uppercase tracking-tight">Barreira de Performance Ativa</p>
           <p className="text-[11px] text-amber-700 mt-0.5">
             Para economizar cota do Firebase, exibimos as 20 chamadas mais recentes. 
-            Os totais superiores refletem o volume real de {sdrStats.total} chamadas.
+            O volume total de <strong>{sdrStats.total}</strong> chamadas continua contabilizado nos cards superiores.
           </p>
         </div>
       </div>

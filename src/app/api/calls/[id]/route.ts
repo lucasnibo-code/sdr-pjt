@@ -23,10 +23,12 @@ export async function GET(
     }
 
     const cleanBaseUrl = baseUrl.replace(/\/$/, '');
-    // Utilizamos o prefixo /api/ que confirmamos ser o correto no seu Render
-    const targetUrl = `${cleanBaseUrl}/api/calls?limit=3000`;
+    
+    // 🚩 AJUSTE CRÍTICO: Agora pedimos apenas UM ID para o backend. 
+    // Removemos o "limit=3000" que matava sua cota.
+    const targetUrl = `${cleanBaseUrl}/api/calls/${id}`;
 
-    console.log(`📡 Buscando detalhe do ID ${id} através de: ${targetUrl}`);
+    console.log(`📡 Buscando DETALHE ÚNICO do ID ${id} em: ${targetUrl}`);
 
     const response = await fetch(targetUrl, {
       method: 'GET',
@@ -34,42 +36,35 @@ export async function GET(
         'Content-Type': 'application/json',
         'x-webhook-secret': process.env.WEBHOOK_SECRET || ''
       },
-      next: { revalidate: 0 }, // Garante que não pegue cache de erros anteriores
+      next: { revalidate: 0 }, 
     });
 
     if (!response.ok) {
-      return NextResponse.json({ debug: "O Render falhou ao responder", status: response.status }, { status: 502 });
+      // Se o backend disser que não achou (404), repassamos o erro limpo
+      if (response.status === 404) {
+        return NextResponse.json({ debug: "Chamada não encontrada no banco" }, { status: 404 });
+      }
+      return NextResponse.json({ debug: "O servidor de API falhou", status: response.status }, { status: 502 });
     }
 
     const data = await response.json();
 
-    // 🚩 TRATAMENTO DE ERRO DE COTA (Firebase RESOURCE_EXHAUSTED)
-    // Se o backend retornar erro de cota, repassamos para o Front não quebrar tentando dar .find()
-    if (data && data.error && (data.error.includes('RESOURCE_EXHAUSTED') || data.success === false)) {
-      console.error("🚨 Erro de cota detectado ao buscar detalhes:", data.error);
+    // 🚩 TRATAMENTO DE ERRO DE COTA
+    if (data && data.error && data.error.includes('RESOURCE_EXHAUSTED')) {
       return NextResponse.json(data, { status: 429 });
     }
 
-    const calls = Array.isArray(data) ? data : (data.calls || []);
+    // Como agora o backend já retorna o objeto direto (ou deveria), 
+    // não precisamos mais do .find() pesado.
+    const found = data.call || data; 
 
-    // Procura a chamada específica pelo ID ou callId
-    const found = calls.find((c: any) => 
-      String(c?.id) === String(id) || String(c?.callId) === String(id)
-    );
-
-    if (!found) {
-      console.warn(`⚠️ Ligação com ID ${id} não encontrada na lista.`);
-      return NextResponse.json({ debug: "Chamada não encontrada", id_buscado: id }, { status: 404 });
-    }
-
-    // Retorna apenas a ligação encontrada para o componente de detalhes
     console.log(`✅ Detalhe da call ${id} entregue com sucesso.`);
     return NextResponse.json(found);
 
   } catch (error: any) {
-    console.error("❌ Erro fatal na rota de DETALHE:", error.message);
+    console.error("❌ Erro fatal na rota de API de Detalhe:", error.message);
     return NextResponse.json({ 
-      debug: "Erro interno na rota de DETALHE do Frontend",
+      debug: "Erro interno no Proxy da API",
       mensagem: error.message 
     }, { status: 500 });
   }

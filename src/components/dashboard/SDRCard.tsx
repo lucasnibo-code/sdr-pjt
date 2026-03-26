@@ -1,103 +1,109 @@
 "use client";
 
-import { useMemo } from 'react';
+import { 
+  User, 
+  TrendingUp, 
+  Phone, 
+  Target, 
+  ChevronRight
+} from 'lucide-react';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { Hourglass } from 'lucide-react'; 
-import type { SDRCall } from '@/types'; 
+import type { SDRRankingEntry } from '@/types';
 
 interface SDRCardProps {
   name: string;
-  calls: SDRCall[]; 
+  stats: SDRRankingEntry;
+  index?: number; // Para mostrar a posição no ranking (1º, 2º...)
 }
 
-export function SDRCard({ name, calls }: SDRCardProps) {
-  // 🚩 FILTRO FLEXÍVEL:
-  // Consideramos avaliada se:
-  // 1. O status for DONE (mesmo que a nota seja 0.0)
-  // 2. OU se houver uma nota maior que zero (caso do Gregorio)
-  const evaluatedCalls = useMemo(() => {
-    return (calls || []).filter(call => 
-      call.processingStatus === "DONE" || (Number(call.nota_spin || 0) > 0)
-    );
-  }, [calls]);
+export function SDRCard({ name, stats, index }: SDRCardProps) {
+  // Cálculo da média vindo direto do Cofre
+  const avgSpin = stats.valid_count > 0 ? (stats.sum_notes / stats.valid_count) : 0;
+  
+  // Taxa de Aproveitamento (Analisadas / Total)
+  const conversionRate = stats.total > 0 
+    ? Math.round((stats.valid_count / stats.total) * 100) 
+    : 0;
 
-  // 🚩 CÁLCULO DA MÉDIA:
-  // Só retornamos null se não houver NENHUMA chamada avaliada.
-  // Se houver uma chamada com nota 0.0, a média será 0.0 (e não null).
-  const avgSpin = useMemo(() => {
-    if (evaluatedCalls.length === 0) return null;
-    
-    const totalScore = evaluatedCalls.reduce((acc, call) => acc + (Number(call.nota_spin) || 0), 0);
-    return totalScore / evaluatedCalls.length;
-  }, [evaluatedCalls]);
-
-  // 🚩 SISTEMA DE CORES:
-  // Agora o 0.0 não cai mais no cinza (Aguardando).
-  const getScoreStyles = (score: number | null) => {
-    // Só fica cinza/opaco se não houver dados para calcular
-    if (score === null) return "text-slate-300 bg-slate-50/50 border-slate-100 opacity-70";
-    
-    // Cores baseadas na performance real
-    if (score >= 8) return "text-emerald-600 bg-emerald-50 border-emerald-100";
-    if (score >= 5) return "text-amber-600 bg-amber-50 border-amber-100";
-    
-    // Notas abaixo de 5 (incluindo 0.0) ficam em Vermelho/Rose
-    return "text-rose-600 bg-rose-50 border-rose-100";
+  // Cores baseadas na nota
+  const getPerformanceColor = (score: number) => {
+    if (score >= 8) return "text-emerald-500 border-emerald-100 bg-emerald-50";
+    if (score >= 5) return "text-amber-500 border-amber-100 bg-amber-50";
+    return "text-rose-500 border-rose-100 bg-rose-50";
   };
 
-  const scoreStyle = getScoreStyles(avgSpin);
+  const perfStyle = getPerformanceColor(avgSpin);
 
   return (
-    <div className="bg-white border border-slate-100 rounded-2xl p-8 flex flex-col items-center shadow-sm hover:shadow-md transition-all group relative overflow-hidden h-full">
-      
-      {/* Box da Nota */}
-      <div className={cn(
-        "w-32 h-32 rounded-3xl border-2 flex flex-col items-center justify-center transition-all mb-6",
-        scoreStyle
-      )}>
-        <span className="text-[10px] font-bold uppercase tracking-widest mb-1 opacity-70">
-          {avgSpin === null ? "Aguardando" : "Média Spin"}
-        </span>
-        <span className="text-5xl font-black tabular-nums">
-          {avgSpin !== null ? avgSpin.toFixed(1) : "--"}
-        </span>
-      </div>
+    <Link 
+      // 🚩 ROTA AJUSTADA: Agora aponta para /sdrs/ (plural) conforme sua pasta
+      href={`/dashboard/sdrs/${encodeURIComponent(name)}`}
+      className="block group"
+    >
+      <div className="bg-white border border-slate-100 rounded-2xl p-4 transition-all duration-300 hover:shadow-lg hover:border-indigo-100 group-hover:-translate-y-1">
+        <div className="flex items-center justify-between">
+          
+          <div className="flex items-center gap-4">
+            {/* Avatar / Posição */}
+            <div className="relative">
+              <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
+                <User className="w-6 h-6" />
+              </div>
+              {index !== undefined && (
+                <div className={cn(
+                  "absolute -top-2 -left-2 w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black shadow-sm border",
+                  index === 0 ? "bg-amber-400 border-amber-500 text-white" : "bg-white border-slate-200 text-slate-500"
+                )}>
+                  {index + 1}º
+                </div>
+              )}
+            </div>
 
-      {/* Iniciais / Avatar */}
-      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-400 mb-4 group-hover:bg-indigo-50 group-hover:text-indigo-400 transition-colors">
-        {name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
-      </div>
-
-      {/* Nome do SDR */}
-      <h3 className="text-sm font-bold text-slate-800 uppercase tracking-tight text-center group-hover:text-indigo-600 transition-colors line-clamp-1">
-        {name}
-      </h3>
-
-      {/* Estatísticas */}
-      <div className="mt-3 text-center space-y-1">
-        {avgSpin !== null ? (
-          <p className="text-[11px] font-bold text-emerald-500 uppercase tracking-tighter">
-            {evaluatedCalls.length} {evaluatedCalls.length === 1 ? 'Análise Realizada' : 'Análises Realizadas'}
-          </p>
-        ) : (
-          <div className="flex items-center justify-center gap-1.5 text-slate-300">
-            <Hourglass className="w-3 h-3" />
-            <span className="text-[10px] font-bold uppercase tracking-tighter">Sem análises produtivas</span>
+            {/* Info do SDR */}
+            <div>
+              <h4 className="text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">
+                {name}
+              </h4>
+              <div className="flex items-center gap-3 mt-1">
+                <span className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
+                  <Phone className="w-3 h-3" /> {stats.total} chamadas
+                </span>
+                <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-500">
+                  <Target className="w-3 h-3" /> {conversionRate}% produtivo
+                </span>
+              </div>
+            </div>
           </div>
-        )}
-        
-        {/* Tentativas Totais (Inclui SKIPPED_FOR_AUDIT e etc) */}
-        <p className="text-[9px] text-slate-300 font-medium italic">
-          {calls.length} {calls.length === 1 ? 'tentativa registrada' : 'tentativas registradas'}
-        </p>
-      </div>
 
-      {/* Badge Top Player */}
-      {avgSpin !== null && avgSpin >= 8.5 && (
-        <div className="absolute top-2 right-2 bg-indigo-500 text-white text-[8px] font-black px-2 py-1 rounded-lg uppercase shadow-lg animate-in zoom-in duration-300">
-          Top Player
+          {/* Score Badge */}
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <div className={cn(
+                "inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border font-black text-sm",
+                perfStyle
+              )}>
+                <TrendingUp className="w-3.5 h-3.5" />
+                {avgSpin > 0 ? avgSpin.toFixed(1) : "--"}
+              </div>
+              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">Média Spin</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-slate-200 group-hover:text-indigo-400 group-hover:translate-x-1 transition-all" />
+          </div>
+
         </div>
-      )}
-    </div>
+
+        {/* Mini barra de progresso (Visual de performance) */}
+        <div className="mt-4 w-full h-1.5 bg-slate-50 rounded-full overflow-hidden">
+          <div 
+            className={cn(
+              "h-full rounded-full transition-all duration-1000",
+              avgSpin >= 8 ? "bg-emerald-400" : avgSpin >= 5 ? "bg-amber-400" : "bg-rose-400"
+            )}
+            style={{ width: `${(avgSpin / 10) * 100}%` }}
+          />
+        </div>
+      </div>
+    </Link>
   );
 }

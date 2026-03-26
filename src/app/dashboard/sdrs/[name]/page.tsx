@@ -3,8 +3,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { CallCard } from '@/components/dashboard/CallCard';
-// 🚩 Usando a nossa função global de filtro de tempo
-import { calculateAverageSpin, isWithinPeriod } from '@/lib/metrics';
 import { Button } from '@/components/ui/button';
 import { 
   ArrowLeft, 
@@ -14,130 +12,116 @@ import {
   ArrowDownUp, 
   PhoneIncoming,
   Hourglass,
-  RefreshCw
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
 import { getInitials } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
-import type { SDRCall } from '@/types';
+import type { SDRCall, DashboardSummary } from '@/types';
 
 type SortOrder = 'date_desc' | 'score_desc' | 'score_asc';
 
 export default function SDRDetailPage() {
-  const { name } = useParams();
+  // 🚩 AJUSTADO: O parâmetro da sua pasta é [name]
+  const { name } = useParams(); 
   const router = useRouter();
   const decodedName = decodeURIComponent(name as string);
 
-  const [allCalls, setAllCalls] = useState<SDRCall[]>([]);
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [calls, setCalls] = useState<SDRCall[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // 🚩 PADRÕES ATUALIZADOS: 'today' e 'score_desc' (Maior Nota)
   const [timeFilter, setTimeFilter] = useState('today'); 
-  const [sortOrder, setSortOrder] = useState<SortOrder>('score_desc');
+  const [sortOrder, setSortOrder] = useState('score_desc');
   
-  // 🚩 ESTADOS PARA O CALENDÁRIO CUSTOMIZADO
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
 
-  const fetchData = () => {
+  const fetchData = async () => {
     setIsLoading(true);
-    let url = `/api/calls?t=${Date.now()}`;
-    
-    // 🚩 SE FOR DATA CUSTOMIZADA, AVISA A API PARA FILTRAR NA ORIGEM
-    if (timeFilter === 'custom' && customStartDate && customEndDate) {
-      url += `&startDate=${customStartDate}&endDate=${customEndDate}`;
-    }
+    try {
+      const timestamp = Date.now();
+      
+      // 🚩 1. BUSCA O RESUMO NO COFRE (Custo: 1 leitura)
+      let summaryUrl = `/api/stats/summary?t=${timestamp}&period=${timeFilter}`;
+      if (timeFilter === 'custom' && customStartDate && customEndDate) {
+        summaryUrl += `&startDate=${customStartDate}&endDate=${customEndDate}`;
+      }
+      const resSummary = await fetch(summaryUrl);
+      const summaryData = await resSummary.json();
+      setSummary(summaryData);
 
-    fetch(url, { cache: 'no-store' })
-      .then(res => res.json())
-      .then(data => {
-        console.log("🔍 URL SDR:", decodedName);
-        
-        // Filtro de nome flexível para achar apenas as chamadas deste SDR
-        const sdrCalls = (data as SDRCall[]).filter((c) => 
-          c.ownerName?.trim().toLowerCase() === decodedName.trim().toLowerCase()
-        );
-        
-        console.log("✅ Chamadas encontradas no Front para este SDR:", sdrCalls.length);
-  
-        setAllCalls(sdrCalls);
-        setIsLoading(false);
-      })
-      .catch((err) => {
-        console.error("Erro ao buscar chamadas:", err);
-        setIsLoading(false);
-      });
+      // 🚩 2. BUSCA AS ÚLTIMAS 20 DESTE SDR (Custo: 20 leituras)
+      // Filtro feito no Backend para evitar baixar centenas de ligações
+      let callsUrl = `/api/calls?ownerName=${encodeURIComponent(decodedName)}&limit=20&t=${timestamp}`;
+      if (timeFilter === 'custom' && customStartDate && customEndDate) {
+        callsUrl += `&startDate=${customStartDate}&endDate=${customEndDate}`;
+      } else {
+        callsUrl += `&period=${timeFilter}`;
+      }
+
+      const resCalls = await fetch(callsUrl);
+      const callsData = await resCalls.json();
+      setCalls(Array.isArray(callsData) ? callsData : []);
+
+    } catch (error) {
+      console.error("Erro ao carregar perfil do SDR:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
-    fetchData();
-  }, [decodedName]);
+    if (decodedName) fetchData();
+  }, [decodedName, timeFilter]);
 
-  const processedData = useMemo(() => {
-    // 1. FILTRO DE TEMPO (Utiliza a métrica global isWithinPeriod)
-    const timeFiltered = allCalls.filter(call => {
-      if (timeFilter === 'custom') {
-        if (!customStartDate || !customEndDate) return true;
-        return isWithinPeriod(call.updatedAt, { start: customStartDate, end: customEndDate });
-      }
-      
-      // Adaptador para manter compatibilidade com as strings do select antigo
-      const filterKey = timeFilter === '7days' ? '7d' : (timeFilter === '30days' ? 'month' : timeFilter);
-      return isWithinPeriod(call.updatedAt, filterKey);
-    });
+  // Lógica de exibição baseada no Cofre + Lista Limitada
+  const sdrStats = useMemo(() => {
+    if (!summary || !summary.sdr_ranking || !summary.sdr_ranking[decodedName]) {
+      return { total: 0, valid: 0, avg: 0 };
+    }
+    const stats = summary.sdr_ranking[decodedName];
+    return {
+      total: stats.total,
+      valid: stats.valid_count,
+      avg: stats.valid_count > 0 ? (stats.sum_notes / stats.valid_count) : 0
+    };
+  }, [summary, decodedName]);
 
-    // 2. FILTRA AS VÁLIDAS PARA A MÉDIA
-    const validCalls = timeFiltered.filter(c => 
-      c.processingStatus === 'DONE' || (c.nota_spin !== null && c.nota_spin !== undefined && Number(c.nota_spin) >= 0 && c.processingStatus !== 'SKIPPED_FOR_AUDIT')
-    );
-
-    // 3. ORDENAÇÃO DO HISTÓRICO
-    const displayCalls = [...validCalls].sort((a, b) => {
+  const sortedCalls = useMemo(() => {
+    return [...calls].sort((a, b) => {
       if (sortOrder === 'score_desc') return (Number(b.nota_spin) || 0) - (Number(a.nota_spin) || 0);
       if (sortOrder === 'score_asc') return (Number(a.nota_spin) || 0) - (Number(b.nota_spin) || 0);
-      
-      const secA = a.updatedAt?._seconds || a.updatedAt?.seconds || 0;
-      const secB = b.updatedAt?._seconds || b.updatedAt?.seconds || 0;
-      return secB - secA;
+      return 0; // Já vem ordenado por data do banco
     });
-
-    return {
-      attemptsCount: timeFiltered.length,
-      connectedCount: validCalls.length,
-      displayCalls,
-      avgSpin: calculateAverageSpin(validCalls) 
-    };
-  }, [allCalls, timeFilter, sortOrder, customStartDate, customEndDate]);
+  }, [calls, sortOrder]);
 
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
-        <div className="w-6 h-6 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" />
-        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sincronizando métricas...</p>
+        <RefreshCw className="w-6 h-6 animate-spin text-indigo-600" />
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Acessando Cofre do SDR...</p>
       </div>
     );
   }
 
-  const initials = getInitials(decodedName);
-
   return (
-    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
+    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20 px-4 md:px-0">
       <div className="flex flex-col gap-6">
-        <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard/sdrs')} className="w-fit -ml-2 text-slate-400 hover:text-indigo-600">
-          <ArrowLeft className="w-4 h-4 mr-2" /> Voltar para SDRs
+        <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard')} className="w-fit -ml-2 text-slate-400 hover:text-indigo-600">
+          <ArrowLeft className="w-4 h-4 mr-2" /> Voltar para o Dashboard
         </Button>
 
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="flex items-center gap-5">
             <div className="w-20 h-20 rounded-2xl bg-white border border-slate-100 flex items-center justify-center shadow-sm text-2xl font-bold text-slate-300">
-              {initials}
+              {getInitials(decodedName)}
             </div>
             <div>
               <h1 className="text-3xl font-headline font-bold text-slate-900 tracking-tight">{decodedName}</h1>
               <div className="flex items-center gap-2 mt-1">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.2em]">
-                  {allCalls[0]?.teamName || 'Equipe Ativa'}
-                </p>
+                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.2em]">SDR Ativo no Período</p>
               </div>
             </div>
           </div>
@@ -145,10 +129,10 @@ export default function SDRDetailPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="bg-white border border-slate-100 rounded-xl p-4 flex flex-col items-center min-w-[130px] shadow-sm">
               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
-                <TrendingUp className="w-3 h-3 text-amber-500" /> Média Nota
+                <TrendingUp className="w-3 h-3 text-amber-500" /> Média SPIN
               </span>
               <span className="text-2xl font-headline font-bold text-slate-900">
-                {processedData.connectedCount > 0 ? processedData.avgSpin.toFixed(1) : "--"}
+                {sdrStats.avg > 0 ? sdrStats.avg.toFixed(1) : "--"}
               </span>
             </div>
 
@@ -156,14 +140,14 @@ export default function SDRDetailPage() {
               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
                 <PhoneCall className="w-3 h-3 text-slate-300" /> Tentativas
               </span>
-              <span className="text-2xl font-headline font-bold text-slate-900">{processedData.attemptsCount}</span>
+              <span className="text-2xl font-headline font-bold text-slate-900">{sdrStats.total}</span>
             </div>
 
             <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4 flex flex-col items-center min-w-[130px] shadow-sm">
               <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
-                <PhoneIncoming className="w-3 h-3 text-indigo-500" /> Conectadas
+                <PhoneIncoming className="w-3 h-3 text-indigo-500" /> Produtivas
               </span>
-              <span className="text-2xl font-headline font-bold text-indigo-700">{processedData.connectedCount}</span>
+              <span className="text-2xl font-headline font-bold text-indigo-700">{sdrStats.valid}</span>
             </div>
           </div>
         </div>
@@ -173,14 +157,13 @@ export default function SDRDetailPage() {
 
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
         <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2">
-          Histórico de Análises 
+          Últimas Atividades 
           <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full text-[9px]">
-            {processedData.displayCalls.length}
+            {calls.length} exibidas
           </span>
         </h3>
 
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          {/* ORDENAÇÃO */}
           <div className="flex items-center bg-white border border-slate-200 rounded-xl px-2 h-9 shadow-sm">
              <ArrowDownUp className="w-3.5 h-3.5 ml-1 text-slate-400" />
              <select 
@@ -188,13 +171,12 @@ export default function SDRDetailPage() {
                onChange={(e) => setSortOrder(e.target.value as SortOrder)}
                className="bg-transparent text-xs font-semibold text-slate-600 focus:outline-none p-1.5 cursor-pointer"
              >
-               <option value="score_desc">Maior Nota</option>
-               <option value="score_asc">Menor Nota</option>
-               <option value="date_desc">Recentes</option>
+               <option value="score_desc">Melhores Notas</option>
+               <option value="score_asc">Menores Notas</option>
+               <option value="date_desc">Mais Recentes</option>
              </select>
           </div>
 
-          {/* FILTRO DE DATA */}
           <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
             <Calendar className="w-3.5 h-3.5 ml-2 text-slate-400" />
             <select 
@@ -204,35 +186,34 @@ export default function SDRDetailPage() {
             >
               <option value="today">Hoje</option>
               <option value="7days">Últimos 7 dias</option>
-              <option value="30days">Mês atual</option>
+              <option value="month">Mês atual</option>
               <option value="all">Todo Histórico</option>
               <option value="custom">Personalizado...</option>
             </select>
           </div>
+        </div>
+      </div>
 
-          {/* INPUTS CUSTOMIZADOS */}
-          {timeFilter === 'custom' && (
-            <div className="flex items-center gap-2 animate-in zoom-in duration-200 bg-white border border-slate-200 p-1 rounded-xl shadow-sm">
-              <input type="date" value={customStartDate} onChange={e => setCustomStartDate(e.target.value)} className="h-7 text-xs font-medium text-slate-600 rounded-lg px-2 outline-none"/>
-              <span className="text-slate-300 text-[10px] font-bold">ATÉ</span>
-              <input type="date" value={customEndDate} onChange={e => setCustomEndDate(e.target.value)} className="h-7 text-xs font-medium text-slate-600 rounded-lg px-2 outline-none"/>
-              <Button onClick={fetchData} variant="default" size="sm" className="h-7 rounded-lg px-3 bg-indigo-600 hover:bg-indigo-700">
-                <RefreshCw className="w-3 h-3" />
-              </Button>
-            </div>
-          )}
+      <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex items-start gap-3">
+        <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+        <div>
+          <p className="text-xs font-bold text-amber-800 uppercase tracking-tight">Barreira de Performance Ativa</p>
+          <p className="text-[11px] text-amber-700 mt-0.5">
+            Para economizar cota do Firebase, exibimos as 20 chamadas mais recentes. 
+            Os totais superiores refletem o volume real de {sdrStats.total} chamadas.
+          </p>
         </div>
       </div>
 
       <div className="grid gap-3">
-        {processedData.displayCalls.length > 0 ? (
-          processedData.displayCalls.map(call => (
+        {sortedCalls.length > 0 ? (
+          sortedCalls.map(call => (
             <CallCard key={call.id} call={call} />
           ))
         ) : (
           <div className="flex flex-col items-center justify-center py-20 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-100 gap-3">
-            <Hourglass className="w-8 h-8 text-slate-200 animate-pulse" />
-            <p className="text-sm text-slate-400 italic font-medium">Nenhuma análise encontrada para este período.</p>
+            <Hourglass className="w-8 h-8 text-slate-200" />
+            <p className="text-sm text-slate-400 italic font-medium">Nenhum rastro encontrado para este SDR.</p>
           </div>
         )}
       </div>

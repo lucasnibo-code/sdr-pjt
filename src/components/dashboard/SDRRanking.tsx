@@ -2,20 +2,27 @@
 
 import { Trophy, ArrowRight, CheckCircle2, MinusCircle, Phone, Timer } from 'lucide-react';
 import Link from 'next/link';
-import { getSDRRanking } from '@/lib/metrics';
-import type { SDRCall } from '@/types';
+import type { DashboardSummary } from '@/types';
 import { cn } from '@/lib/utils';
 
 interface SDRRankingProps {
-  calls: SDRCall[];
+  summary: DashboardSummary | null;
 }
 
-export function SDRRanking({ calls }: SDRRankingProps) {
-  const ranking = getSDRRanking(calls);
+export function SDRRanking({ summary }: SDRRankingProps) {
+  // Transforma o objeto do cofre em array ordenado por nota
+  const ranking = summary?.sdr_ranking 
+    ? Object.entries(summary.sdr_ranking)
+        .map(([name, stats]) => ({
+          name,
+          ...stats,
+          avgSpin: stats.valid_count > 0 ? stats.sum_notes / stats.valid_count : 0
+        }))
+        .sort((a, b) => b.avgSpin - a.avgSpin)
+    : [];
 
-  // Configuração de cores inteligente
+  // Configuração de cores inteligente baseada na nota do Cofre
   const getStatusConfig = (avg: number, hasAnalyzed: boolean) => {
-    // ESTADO: Sem dados produtivos (Cinza)
     if (!hasAnalyzed) {
       return { 
         color: "text-slate-400", 
@@ -24,7 +31,6 @@ export function SDRRanking({ calls }: SDRRankingProps) {
       };
     }
     
-    // ESTADOS: Performance Real
     if (avg >= 8) return { color: "text-emerald-500", bg: "bg-emerald-50", icon: <CheckCircle2 className="w-3 h-3" /> };
     if (avg >= 5) return { color: "text-amber-500", bg: "bg-amber-50", icon: <MinusCircle className="w-3 h-3" /> };
     
@@ -35,10 +41,10 @@ export function SDRRanking({ calls }: SDRRankingProps) {
     };
   };
 
-  if (ranking.length === 0) {
+  if (!summary || ranking.length === 0) {
     return (
       <div className="bg-white border border-slate-100 rounded-xl p-8 text-center">
-        <p className="text-xs text-slate-400 italic">Nenhum rastro encontrado.</p>
+        <p className="text-xs text-slate-400 italic">Nenhum rastro encontrado no cofre.</p>
       </div>
     );
   }
@@ -51,19 +57,19 @@ export function SDRRanking({ calls }: SDRRankingProps) {
           Ranking Performance
         </h3>
         <span className="text-[9px] font-bold text-slate-300 uppercase tracking-tighter flex items-center gap-1">
-          <Phone className="w-2.5 h-2.5" /> {calls.length} Vol. Total
+          <Phone className="w-2.5 h-2.5" /> {summary.total_calls} Vol. Total
         </span>
       </div>
       
       <div className="divide-y divide-slate-50">
         {ranking.map((sdr, index) => {
-          const realCalls = (sdr as any).analyzedCount || 0;
-          const hasAnalyzed = realCalls > 0;
-          const status = getStatusConfig(Number(sdr.avgSpin), hasAnalyzed);
+          const hasAnalyzed = sdr.valid_count > 0;
+          const status = getStatusConfig(sdr.avgSpin, hasAnalyzed);
           
           return (
             <Link 
               key={sdr.name} 
+              // 🚩 AJUSTADO: Rota para /sdrs/ (plural) para bater com sua pasta [name]
               href={`/dashboard/sdrs/${encodeURIComponent(sdr.name)}`}
               className={cn(
                 "flex items-center justify-between p-4 transition-all group",
@@ -71,7 +77,6 @@ export function SDRRanking({ calls }: SDRRankingProps) {
               )}
             >
               <div className="flex items-center gap-3">
-                {/* Posição: Só brilha se tiver nota */}
                 <span className={cn(
                   "text-[10px] font-black w-5 text-center",
                   !hasAnalyzed ? "text-slate-200" :
@@ -91,7 +96,7 @@ export function SDRRanking({ calls }: SDRRankingProps) {
                     hasAnalyzed ? "text-emerald-500" : "text-slate-400"
                   )}>
                     {hasAnalyzed ? (
-                      <>{realCalls} {realCalls === 1 ? 'analisada' : 'analisadas'}</>
+                      <>{sdr.valid_count} {sdr.valid_count === 1 ? 'analisada' : 'analisadas'}</>
                     ) : (
                       "Aguardando reunião qualificada"
                     )}
@@ -107,7 +112,7 @@ export function SDRRanking({ calls }: SDRRankingProps) {
                     status.bg
                   )}>
                     {status.icon}
-                    {hasAnalyzed ? Number(sdr.avgSpin).toFixed(1) : "--"}
+                    {hasAnalyzed ? sdr.avgSpin.toFixed(1) : "--"}
                   </div>
                   <p className="text-[8px] text-slate-400 font-bold uppercase tracking-tighter">Nota Spin</p>
                 </div>
@@ -120,7 +125,7 @@ export function SDRRanking({ calls }: SDRRankingProps) {
       
       <div className="p-3 bg-slate-50/50 border-t border-slate-50 text-center">
         <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">
-          SDRs sem reuniões de +2min ficam em espera
+          Consolidado via Cofre de Saldos
         </p>
       </div>
     </div>

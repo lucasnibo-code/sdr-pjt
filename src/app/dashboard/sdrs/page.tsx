@@ -28,20 +28,26 @@ export default function SDRsPage() {
 
   const fetchData = async () => {
     setIsLoading(true);
-    setError(null); // Limpa erros antigos antes de tentar novamente
+    setError(null);
 
     try {
       const timestamp = Date.now();
-      const res = await fetch(`/api/stats/summary?period=month&t=${timestamp}`);
+      
+      // 🚩 Calcula o Início e o Fim do mês atual para mandar pro Backend
+      const now = new Date();
+      const monthStr = String(now.getMonth() + 1).padStart(2, '0');
+      const startIso = `${now.getFullYear()}-${monthStr}-01T00:00:00.000Z`;
+      const endIso = `${now.toISOString().split('T')[0]}T23:59:59.999Z`;
+
+      // 🚩 Agora mandamos as datas exatas em vez da palavra "month"
+      const res = await fetch(`/api/stats/summary?startDate=${startIso}&endDate=${endIso}&t=${timestamp}`);
       const data = await res.json();
 
-      // --- 3. VALIDAÇÃO DE ERRO DA API ---
       if (!res.ok || data.error) {
         throw new Error(data.error || 'Falha ao carregar o ranking de SDRs. Tente novamente.');
       }
 
       if (data.sdr_ranking) {
-        // Mapeia e transforma garantindo a tipagem correta
         const formattedRanking: SDRRankingItem[] = Object.entries(data.sdr_ranking)
           .map(([name, stats]) => {
             const typedStats = stats as API_SDRStats;
@@ -56,7 +62,7 @@ export default function SDRsPage() {
 
         setRanking(formattedRanking);
       } else {
-        setRanking([]); // Garante um array limpo se não vier o objeto sdr_ranking
+        setRanking([]);
       }
     } catch (err: any) {
       console.error("❌ Erro ao carregar SDRs:", err);

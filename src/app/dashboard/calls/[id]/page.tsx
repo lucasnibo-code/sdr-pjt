@@ -22,8 +22,7 @@ import {
   MessageSquare,
   MinusCircle,
   RefreshCw,
-  SearchX,
-  ExternalLink // 🚩 ALTERAÇÃO: Importar ExternalLink
+  SearchX
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -31,9 +30,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import type { SDRCall, StatusFinal } from '@/types';
 import { cn } from '@/lib/utils';
-
-// 🚩 ALTERAÇÃO: Definir o ID da conta do HubSpot como uma constante
-const HUBSPOT_ACCOUNT_ID = '45311822'; 
 
 export default function CallDetailPage() {
   const params = useParams();
@@ -61,6 +57,7 @@ export default function CallDetailPage() {
         const data = await res.json();
 
         if (!res.ok) {
+          // Se for 404 ou erro de cota, capturamos a mensagem vinda do Proxy
           throw new Error(data.debug || data.error || 'Não foi possível carregar esta análise.');
         }
 
@@ -77,20 +74,16 @@ export default function CallDetailPage() {
     loadCall();
   }, [routeId]);
 
-  // 🚩 ALTERAÇÃO: Formatador Robusto para Datas do Firebase (seconds/nanoseconds)
-  // Mais explícito na tipagem interna para `_seconds` e `seconds`.
+  // Formatador Robusto para Datas do Firebase (seconds/nanoseconds)
   const formatDate = (dateInput: any) => {
     if (!dateInput) return 'Data não disponível';
+    const seconds = dateInput?._seconds || dateInput?.seconds || (typeof dateInput === 'number' ? dateInput : null);
     
-    // Tenta capturar segundos de várias estruturas do Firebase
-    const rawDate = (dateInput as { _seconds?: number })?._seconds || (dateInput as { seconds?: number })?.seconds || dateInput;
-    const seconds = typeof rawDate === 'number' ? rawDate : null; // Se for um número direto, usa.
-
     let date: Date;
-    if (seconds !== null) {
-      date = new Date(seconds * 1000); // Converte segundos para milissegundos
+    if (seconds) {
+      date = new Date(seconds * 1000);
     } else {
-      date = new Date(dateInput); // Tenta parsear como string de data normal
+      date = new Date(dateInput);
     }
     
     if (isNaN(date.getTime())) return 'Data não disponível';
@@ -102,7 +95,7 @@ export default function CallDetailPage() {
     });
   };
 
-  const getStatusConfig = (status: StatusFinal | "NAO_SE_APLICA" | undefined) => { // 🚩 ALTERAÇÃO: Adicionado `undefined` para lidar com `call.status_final` nulo
+  const getStatusConfig = (status: StatusFinal | "NAO_SE_APLICA") => {
     switch (status) {
       case 'APROVADO':
         return {
@@ -136,13 +129,13 @@ export default function CallDetailPage() {
           border: 'border-slate-200',
           label: 'Descarte (Rota C)'
         };
-      default: // Este será o caso para SKIPPED_FOR_AUDIT e outros estados não mapeados
+      default:
         return {
           icon: <Zap className="w-4 h-4" />,
           color: 'text-slate-400',
           bg: 'bg-slate-50',
           border: 'border-slate-100',
-          label: 'Pendente' // ou 'Em Análise' ou 'Tentativa'
+          label: 'Pendente'
         };
     }
   };
@@ -182,37 +175,9 @@ export default function CallDetailPage() {
     );
   }
 
-  const statusConfig = getStatusConfig(call.status_final); // 🚩 ALTERAÇÃO: Renomeado para evitar conflito com 'status' de HTML
+  const status = getStatusConfig(call.status_final);
   const isRotaC = call.status_final === 'NAO_SE_APLICA';
-  const isSkippedForAudit = call.processingStatus === "SKIPPED_FOR_AUDIT"; // 🚩 ALTERAÇÃO: Nova variável para SKIPPED_FOR_AUDIT
-  
   const durationMin = call.durationMs ? (call.durationMs / 60000).toFixed(1) : '0.0';
-
-  // 🚩 ALTERAÇÃO: Lógica consolidada para exibir a nota e definir sua cor
-  let displayNota: string;
-  let notaTextColor: string;
-  let notaDescription: string;
-
-  if (isRotaC || isSkippedForAudit || typeof call.nota_spin !== 'number' || isNaN(call.nota_spin)) {
-      displayNota = "--";
-      notaTextColor = "text-slate-300"; // Cinza para não analisado/descartado
-      notaDescription = isRotaC ? "Descarte" : "Não Analisado";
-  } else {
-      displayNota = call.nota_spin.toFixed(1);
-      if (call.nota_spin >= 7) {
-          notaTextColor = "text-green-600";
-      } else if (call.nota_spin >= 5) {
-          notaTextColor = "text-amber-600";
-      } else { // Notas 0.0 a 4.9
-          notaTextColor = "text-red-600";
-      }
-      notaDescription = "Métrica Técnica";
-  }
-
-  // 🚩 ALTERAÇÃO: URL para a página de revisão de chamadas no HubSpot
-  const hubspotReviewUrl = call.hubspotCallId 
-    ? `https://app.hubspot.com/calls/${HUBSPOT_ACCOUNT_ID}/review/${call.hubspotCallId}`
-    : null;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20 px-4 md:px-0">
@@ -237,14 +202,14 @@ export default function CallDetailPage() {
               <Badge
                 className={cn(
                   'px-2.5 py-0.5 border shadow-none flex items-center gap-1.5',
-                  statusConfig.bg, // 🚩 ALTERAÇÃO: Usar statusConfig
-                  statusConfig.color, // 🚩 ALTERAÇÃO: Usar statusConfig
-                  statusConfig.border // 🚩 ALTERAÇÃO: Usar statusConfig
+                  status.bg,
+                  status.color,
+                  status.border
                 )}
               >
-                {statusConfig.icon} {/* 🚩 ALTERAÇÃO: Usar statusConfig */}
+                {status.icon}
                 <span className="font-bold uppercase tracking-wider text-[10px]">
-                  {statusConfig.label} {/* 🚩 ALTERAÇÃO: Usar statusConfig */}
+                  {status.label}
                 </span>
               </Badge>
             </div>
@@ -258,14 +223,12 @@ export default function CallDetailPage() {
                 <Clock className="w-4 h-4" /> {durationMin} min
               </span>
               <span className="flex items-center gap-2 font-medium">
-                <Calendar className="w-4 h-4" /> 
-                {/* 🚩 ALTERAÇÃO: Incluído `createdAt` como fallback e cast `as any` para robustez de tipo */}
-                {formatDate((call.analyzedAt || call.updatedAt || call.createdAt) as any)}
+                <Calendar className="w-4 h-4" /> {formatDate(call.analyzedAt || call.updatedAt)}
               </span>
             </div>
 
-            <div className="flex gap-2 pt-2"> {/* 🚩 ALTERAÇÃO: Adicionado flex container para os botões */}
-              {call.recordingUrl && (
+            {call.recordingUrl && (
+              <div className="pt-2">
                 <Button 
                   asChild 
                   variant="outline" 
@@ -273,25 +236,11 @@ export default function CallDetailPage() {
                   className="border-indigo-100 bg-indigo-50/30 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all active:scale-95 h-9 rounded-xl"
                 >
                   <a href={call.recordingUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-bold uppercase tracking-wider text-[9px]">
-                    <Mic className="w-3.5 h-3.5" /> Ouvir Gravação
+                    <Mic className="w-3.5 h-3.5" /> Ouvir no HubSpot
                   </a>
                 </Button>
-              )}
-              {/* 🚩 ALTERAÇÃO: Novo botão "Ver no HubSpot" */}
-              {hubspotReviewUrl && (
-                <Button 
-                  asChild 
-                  variant="outline" 
-                  size="sm" 
-                  className="border-orange-100 bg-orange-50/30 text-orange-600 hover:bg-orange-600 hover:text-white transition-all active:scale-95 h-9 rounded-xl"
-                >
-                  <a href={hubspotReviewUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-bold uppercase tracking-wider text-[9px]">
-                    {/* <img src="/hubspot-icon.png" className="w-3.5 h-3.5" alt="HubSpot" /> */}
-                    <ExternalLink className="w-3.5 h-3.5" /> Ver no HubSpot
-                  </a>
-                </Button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           <div className="bg-white border border-slate-100 rounded-2xl p-6 flex flex-col items-center justify-center min-w-[150px] shadow-sm">
@@ -300,12 +249,12 @@ export default function CallDetailPage() {
             </span>
             <span className={cn(
               "text-4xl font-headline font-black",
-              notaTextColor // 🚩 ALTERAÇÃO: Usar a cor definida na lógica consolidada
+              isRotaC ? "text-slate-200" : "text-slate-900"
             )}>
-              {displayNota} {/* 🚩 ALTERAÇÃO: Usar a nota formatada */}
+              {isRotaC ? "--" : (typeof call.nota_spin === 'number' ? call.nota_spin.toFixed(1) : '0.0')}
             </span>
             <span className="text-[10px] text-slate-400 font-bold mt-1 uppercase">
-              {notaDescription} {/* 🚩 ALTERAÇÃO: Usar a descrição da nota */}
+              {isRotaC ? "Descarte" : "Métrica Técnica"}
             </span>
           </div>
         </div>

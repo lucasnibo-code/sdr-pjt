@@ -1,5 +1,6 @@
 "use client";
 
+import React, { useMemo } from 'react';
 import { 
   User, 
   TrendingUp, 
@@ -8,18 +9,28 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import type { SDRRankingEntry } from '@/types';
+
+// --- TIPAGEM ---
+
+interface SDRRankingProps {
+  summary: {
+    sdr_ranking?: Record<string, any>;
+  } | null;
+}
 
 interface SDRCardProps {
   name: string;
-  stats: SDRRankingEntry;
+  stats: {
+    valid_count: number;
+    calls: number;
+    avgSpin: number;
+  };
   index?: number;
 }
 
+// --- COMPONENTE: SDR CARD ---
+
 export function SDRCard({ name, stats, index }: SDRCardProps) {
-  // Cálculo da média vindo direto do Cofre
-  const avgSpin = stats.valid_count > 0 ? (stats.sum_notes / stats.valid_count) : 0;
-  
   // Cores baseadas na nota
   const getPerformanceColor = (score: number) => {
     if (score >= 8) return "text-emerald-500 border-emerald-100 bg-emerald-50";
@@ -27,7 +38,7 @@ export function SDRCard({ name, stats, index }: SDRCardProps) {
     return "text-rose-500 border-rose-100 bg-rose-50";
   };
 
-  const perfStyle = getPerformanceColor(avgSpin);
+  const perfStyle = getPerformanceColor(stats.avgSpin);
 
   return (
     <Link 
@@ -60,7 +71,7 @@ export function SDRCard({ name, stats, index }: SDRCardProps) {
               </h4>
               <div className="flex items-center gap-3 mt-1">
                 <span className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
-                  <Phone className="w-3 h-3" /> {stats.total} chamadas
+                  <Phone className="w-3 h-3" /> {stats.calls} chamadas
                 </span>
               </div>
             </div>
@@ -74,7 +85,7 @@ export function SDRCard({ name, stats, index }: SDRCardProps) {
                 perfStyle
               )}>
                 <TrendingUp className="w-3.5 h-3.5" />
-                {avgSpin > 0 ? avgSpin.toFixed(1) : "--"}
+                {stats.avgSpin > 0 ? stats.avgSpin.toFixed(1) : "--"}
               </div>
               <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">Média Spin</p>
             </div>
@@ -83,5 +94,48 @@ export function SDRCard({ name, stats, index }: SDRCardProps) {
         </div>
       </div>
     </Link>
+  );
+}
+
+// --- COMPONENTE: SDR RANKING (LISTA) ---
+
+export function SDRRanking({ summary }: SDRRankingProps) {
+  const ranking = useMemo(() => {
+    if (!summary?.sdr_ranking) return [];
+
+    return Object.entries(summary.sdr_ranking)
+      .map(([name, stats]: [string, any]) => {
+        // 🚩 Garante que estamos pegando os nomes certos vindos do Backend
+        const validCount = Number(stats.valid_calls || stats.valid_count || 0);
+        const totalNotes = Number(stats.sum_notes || 0);
+        const avgSpin = validCount > 0 ? totalNotes / validCount : 0;
+
+        return {
+          name,
+          valid_count: validCount,
+          calls: Number(stats.calls || stats.total || 0),
+          avgSpin: avgSpin
+        };
+      })
+      .sort((a, b) => b.avgSpin - a.avgSpin);
+  }, [summary]);
+
+  return (
+    <div className="space-y-3">
+      {ranking.length > 0 ? (
+        ranking.map((sdr, index) => (
+          <SDRCard 
+            key={sdr.name} 
+            name={sdr.name} 
+            stats={sdr} 
+            index={index} 
+          />
+        ))
+      ) : (
+        <div className="text-center py-10 border-2 border-dashed border-slate-100 rounded-2xl">
+          <p className="text-slate-400 text-sm italic">Nenhum dado de ranking disponível.</p>
+        </div>
+      )}
+    </div>
   );
 }

@@ -1,27 +1,60 @@
 "use client";
 
+import { useMemo } from 'react';
 import { Trophy, ArrowRight, CheckCircle2, MinusCircle, Phone, Timer } from 'lucide-react';
 import Link from 'next/link';
 import type { DashboardSummary } from '@/types';
 import { cn } from '@/lib/utils';
+
+// --- UTILS ---
+
+/**
+ * Exemplo de conversão segura para Firebase Timestamps no Frontend
+ */
+export const formatDate = (dateInput: any) => {
+  if (!dateInput) return '--/--';
+  
+  // 🚩 Verificação de Timestamps do Firebase (_seconds ou seconds)
+  const seconds = dateInput?._seconds || dateInput?.seconds;
+  
+  if (seconds) {
+    return new Date(seconds * 1000).toLocaleDateString('pt-BR');
+  }
+  
+  // Caso o back-end já tenha enviado como string ISO ou Date
+  return new Date(dateInput).toLocaleDateString('pt-BR');
+};
+
+// --- COMPONENTE ---
 
 interface SDRRankingProps {
   summary: DashboardSummary | null;
 }
 
 export function SDRRanking({ summary }: SDRRankingProps) {
-  // Transforma o objeto do cofre em array ordenado por nota
-  const ranking = summary?.sdr_ranking 
-    ? Object.entries(summary.sdr_ranking)
-        .map(([name, stats]) => ({
-          name,
-          ...stats,
-          avgSpin: stats.valid_count > 0 ? stats.sum_notes / stats.valid_count : 0
-        }))
-        .sort((a, b) => b.avgSpin - a.avgSpin)
-    : [];
+  // 🚩 REVISÃO DE LÓGICA: Usando useMemo para evitar re-cálculos desnecessários
+  const ranking = useMemo(() => {
+    if (!summary?.sdr_ranking) return [];
 
-  // Configuração de cores inteligente baseada na nota do Cofre
+    return Object.entries(summary.sdr_ranking)
+      .map(([name, stats]: [string, any]) => {
+        // Garantimos que os nomes das propriedades batam com o que o back-end envia
+        const validCount = Number(stats.valid_calls || stats.valid_count || 0);
+        const sumNotes = Number(stats.sum_notes || 0);
+        const avgSpin = validCount > 0 ? sumNotes / validCount : 0;
+
+        return {
+          name,
+          valid_count: validCount,
+          avgSpin
+        };
+      })
+      .sort((a, b) => b.avgSpin - a.avgSpin);
+  }, [summary]);
+
+  /**
+   * Configuração de cores inteligente baseada na nota do Cofre
+   */
   const getStatusConfig = (avg: number, hasAnalyzed: boolean) => {
     if (!hasAnalyzed) {
       return { 
@@ -31,7 +64,8 @@ export function SDRRanking({ summary }: SDRRankingProps) {
       };
     }
     
-    if (avg >= 8) return { color: "text-emerald-500", bg: "bg-emerald-50", icon: <CheckCircle2 className="w-3 h-3" /> };
+    // Threshold ajustado para 7.5 conforme solicitado
+    if (avg >= 7.5) return { color: "text-emerald-500", bg: "bg-emerald-50", icon: <CheckCircle2 className="w-3 h-3" /> };
     if (avg >= 5) return { color: "text-amber-500", bg: "bg-amber-50", icon: <MinusCircle className="w-3 h-3" /> };
     
     return { 
@@ -69,7 +103,6 @@ export function SDRRanking({ summary }: SDRRankingProps) {
           return (
             <Link 
               key={sdr.name} 
-              // 🚩 AJUSTADO: Rota para /sdrs/ (plural) para bater com sua pasta [name]
               href={`/dashboard/sdrs/${encodeURIComponent(sdr.name)}`}
               className={cn(
                 "flex items-center justify-between p-4 transition-all group",

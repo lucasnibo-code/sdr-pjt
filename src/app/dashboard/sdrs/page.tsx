@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { RefreshCw, Trophy, Target, PhoneCall, AlertCircle, Calendar } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
-// --- TIPAGEM ---
 interface API_SDRStats {
   nota_media?: string | number;
   calls?: string | number;
@@ -19,24 +20,42 @@ interface SDRRankingItem {
   validos: number;
 }
 
-export default function SDRsPage() {
+// Criamos um componente interno para poder usar o useSearchParams com segurança
+function SDRRankingContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [ranking, setRanking] = useState<SDRRankingItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // 🚩 ESTADOS DE FILTRO DE DATA
-  const [dateFilter, setDateFilter] = useState('month'); // Padrão: Mês atual
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
 
-  // 1. Memoize o cálculo de datas para evitar repetição
+  // 🚩 ESTADO INICIALIZADO A PARTIR DA URL
+  const [dateFilter, setDateFilter] = useState(searchParams.get('filter') || 'month');
+  const [customStartDate, setCustomStartDate] = useState(searchParams.get('start') || '');
+  const [customEndDate, setCustomEndDate] = useState(searchParams.get('end') || '');
+
+  // 🚩 ATUALIZA A URL QUANDO O USUÁRIO MUDA O FILTRO
+  const updateUrlParams = (filter: string, start: string, end: string) => {
+    const params = new URLSearchParams();
+    params.set('filter', filter);
+    if (filter === 'custom' && start) params.set('start', start);
+    if (filter === 'custom' && end) params.set('end', end);
+    
+    // Atualiza a URL sem recarregar a página (shallow routing do Next 13+)
+    router.push(`/dashboard/sdrs?${params.toString()}`, { scroll: false });
+  };
+
+  const handleFilterChange = (newFilter: string) => {
+    setDateFilter(newFilter);
+    updateUrlParams(newFilter, customStartDate, customEndDate);
+  };
+
   const getDateRange = () => {
     const now = new Date();
     let startIso = '';
     let endIso = '';
 
     const toLocalISO = (date: Date) => {
-      // Ajuste para pegar a data local ignorando o fuso UTC no split
       const offset = date.getTimezoneOffset() * 60000;
       return new Date(date.getTime() - offset).toISOString().split('T')[0];
     };
@@ -55,7 +74,6 @@ export default function SDRsPage() {
       startIso = `${now.getFullYear()}-${monthStr}-01T00:00:00.000Z`;
       endIso = `${toLocalISO(now)}T23:59:59.999Z`;
     } else if (dateFilter === 'custom' && customStartDate && customEndDate) {
-      // Validação simples
       if (customStartDate > customEndDate) return { startIso: '', endIso: '' };
       startIso = `${customStartDate}T00:00:00.000Z`;
       endIso = `${customEndDate}T23:59:59.999Z`;
@@ -65,7 +83,6 @@ export default function SDRsPage() {
   };
 
   const fetchData = async () => {
-    // Se for custom e as datas não estiverem preenchidas, não busca ainda
     if (dateFilter === 'custom' && (!customStartDate || !customEndDate)) return;
 
     setIsLoading(true);
@@ -81,7 +98,7 @@ export default function SDRsPage() {
 
       const res = await fetch(summaryUrl);
       const data = await res.json();
-
+      
       if (!res.ok || data.error) {
         throw new Error(data.error || 'Falha ao carregar o ranking de SDRs. Tente novamente.');
       }
@@ -98,20 +115,18 @@ export default function SDRsPage() {
             };
           })
           .sort((a, b) => b.nota - a.nota);
-
         setRanking(formattedRanking);
       } else {
-        setRanking([]); 
+        setRanking([]);
       }
     } catch (err: any) {
-      console.error("❌ Erro ao carregar SDRs:", err);
-      setError(err.message || 'Erro inesperado de conexão com o servidor.');
+      setError(err.message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // 2. useEffect observando todas as mudanças de filtro
+  // Escuta as mudanças de URL/Filtro para disparar a busca
   useEffect(() => {
     fetchData();
   }, [dateFilter, customStartDate, customEndDate]);
@@ -122,11 +137,20 @@ export default function SDRsPage() {
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   };
 
-  // 3. Melhoria na UX de Loading (Cabeçalho sempre visível)
+  // 🚩 CONSTRUÇÃO DA URL DE CONTEXTO PARA O CARD
+  const getSDRLink = (sdrName: string) => {
+    const params = new URLSearchParams();
+    params.set('filter', dateFilter);
+    if (customStartDate) params.set('start', customStartDate);
+    if (customEndDate) params.set('end', customEndDate);
+    
+    return `/dashboard/sdrs/${encodeURIComponent(sdrName)}?${params.toString()}`;
+  };
+
   return (
     <div className="space-y-8 pb-20 animate-in fade-in duration-700">
       
-      {/* 🚩 CABEÇALHO COM FILTRO DE DATAS ADICIONADO */}
+      {/* CABEÇALHO COM FILTRO */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-headline font-bold text-slate-900 tracking-tight">Equipe de Vendas</h1>
@@ -139,7 +163,7 @@ export default function SDRsPage() {
               <Calendar className="w-4 h-4 text-slate-400 mr-2" />
               <select 
                 value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
+                onChange={(e) => handleFilterChange(e.target.value)}
                 className="text-sm font-bold text-slate-700 bg-transparent outline-none cursor-pointer"
               >
                 <option value="today">Hoje</option>
@@ -155,14 +179,20 @@ export default function SDRsPage() {
                 <input 
                   type="date" 
                   value={customStartDate} 
-                  onChange={e => setCustomStartDate(e.target.value)} 
+                  onChange={e => {
+                    setCustomStartDate(e.target.value);
+                    updateUrlParams(dateFilter, e.target.value, customEndDate);
+                  }} 
                   className="h-8 text-xs font-medium text-slate-600 rounded-lg px-2 outline-none"
                 />
                 <span className="text-slate-300 text-[10px] font-bold">ATÉ</span>
                 <input 
                   type="date" 
                   value={customEndDate} 
-                  onChange={e => setCustomEndDate(e.target.value)} 
+                  onChange={e => {
+                    setCustomEndDate(e.target.value);
+                    updateUrlParams(dateFilter, customStartDate, e.target.value);
+                  }} 
                   className="h-8 text-xs font-medium text-slate-600 rounded-lg px-2 outline-none"
                 />
                 <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={fetchData}><RefreshCw className="w-3 h-3"/></Button>
@@ -171,16 +201,17 @@ export default function SDRsPage() {
           </div>
           
           <Button onClick={fetchData} variant="outline" className="h-11 rounded-xl border-slate-200 hover:bg-slate-50">
-            <RefreshCw className="w-4 h-4 mr-2" /> Atualizar
+            <RefreshCw className={cn("w-4 h-4 mr-2", isLoading && "animate-spin")} /> 
+            {isLoading ? "Atualizando..." : "Atualizar"}
           </Button>
         </div>
       </div>
 
-      {/* 🚩 RENDERIZAÇÃO CONDICIONAL ABAIXO DO CABEÇALHO */}
+      {/* RENDERIZAÇÃO CONDICIONAL CENTRALIZADA */}
       {isLoading ? (
         <div className="flex flex-col items-center justify-center min-h-[300px]">
            <RefreshCw className="w-6 h-6 animate-spin text-indigo-500 mb-2" />
-           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">CARREGANDO RANKING...</p>
+           <p className="text-xs font-bold text-slate-400 tracking-widest uppercase">Processando Ranking...</p>
         </div>
       ) : error ? (
         <div className="flex flex-col items-center justify-center min-h-[300px] gap-4 animate-in fade-in zoom-in duration-300">
@@ -188,9 +219,7 @@ export default function SDRsPage() {
             <AlertCircle className="w-8 h-8" />
           </div>
           <h2 className="text-xl font-headline font-bold text-slate-800">Problema de Conexão</h2>
-          <p className="text-sm text-slate-500 text-center max-w-md bg-white border border-slate-200 p-4 rounded-xl shadow-sm">
-            {error}
-          </p>
+          <p className="text-sm text-slate-500 text-center max-w-md bg-white border border-slate-200 p-4 rounded-xl shadow-sm">{error}</p>
           <Button onClick={fetchData} className="mt-4 bg-slate-900 hover:bg-slate-800 rounded-xl">
             <RefreshCw className="w-4 h-4 mr-2" /> Tentar Novamente
           </Button>
@@ -202,54 +231,79 @@ export default function SDRsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {ranking.map((sdr, index) => (
-            <Card key={index} className="border-slate-100 shadow-sm hover:border-indigo-200 hover:shadow-md transition-all duration-300 group">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-6">
-                  <div className="flex items-center gap-4">
-                    <div className="relative">
-                      <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-lg border border-indigo-100 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                        {getInitials(sdr.name)}
-                      </div>
-                      {index === 0 && (
-                        <div className="absolute -top-2 -right-2 bg-amber-400 text-white rounded-full p-1 border-2 border-white">
-                          <Trophy className="w-3 h-3" />
+            <Link 
+              href={getSDRLink(sdr.name)} 
+              key={index}
+              // 🚩 Acessibilidade adicionada: outline e ring para navegação via TAB
+              className="block outline-none rounded-2xl focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 transition-all"
+            >
+              <Card className="border-slate-100 shadow-sm hover:border-indigo-300 hover:shadow-md hover:shadow-indigo-50/50 transition-all duration-300 group h-full">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between mb-6">
+                    <div className="flex items-center gap-4">
+                      <div className="relative">
+                        <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-lg border border-indigo-100 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                          {getInitials(sdr.name)}
                         </div>
-                      )}
+                        {index === 0 && (
+                          <div className="absolute -top-2 -right-2 bg-amber-400 text-white rounded-full p-1 border-2 border-white">
+                            <Trophy className="w-3 h-3" />
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-slate-800 line-clamp-1" title={sdr.name}>{sdr.name}</h3>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Consultor SDR</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-2xl font-headline font-black text-slate-900">
+                        {sdr.nota > 0 ? sdr.nota.toFixed(1) : '--'}
+                      </div>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">SPIN Score</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 bg-slate-50 rounded-xl p-4 border border-slate-100">
+                    <div>
+                      <div className="flex items-center gap-1.5 text-slate-500 mb-1">
+                        <PhoneCall className="w-3.5 h-3.5" />
+                        <span className="text-[10px] font-bold uppercase tracking-widest">Volume</span>
+                      </div>
+                      <p className="font-bold text-slate-800">{sdr.volume}</p>
                     </div>
                     <div>
-                      <h3 className="font-bold text-slate-800 line-clamp-1" title={sdr.name}>{sdr.name}</h3>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Consultor SDR</p>
+                      <div className="flex items-center gap-1.5 text-slate-500 mb-1">
+                        <Target className="w-3.5 h-3.5" />
+                        <span className="text-[10px] font-bold uppercase tracking-widest">Avaliadas</span>
+                      </div>
+                      <p className="font-bold text-emerald-600">{sdr.validos}</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-headline font-black text-slate-900">
-                      {sdr.nota > 0 ? sdr.nota.toFixed(1) : '--'}
-                    </div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">SPIN Score</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 bg-slate-50 rounded-xl p-4 border border-slate-100">
-                  <div>
-                    <div className="flex items-center gap-1.5 text-slate-500 mb-1">
-                      <PhoneCall className="w-3.5 h-3.5" />
-                      <span className="text-[10px] font-bold uppercase tracking-widest">Volume</span>
-                    </div>
-                    <p className="font-bold text-slate-800">{sdr.volume}</p>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5 text-slate-500 mb-1">
-                      <Target className="w-3.5 h-3.5" />
-                      <span className="text-[10px] font-bold uppercase tracking-widest">Avaliadas</span>
-                    </div>
-                    <p className="font-bold text-emerald-600">{sdr.validos}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </Link>
           ))}
         </div>
       )}
     </div>
   );
+}
+
+// 🚩 Wrapper necessário no Next.js 13+ quando usamos useSearchParams
+export default function Page() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[400px]">
+        <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
+      </div>
+    }>
+      <SDRRankingContent />
+    </Suspense>
+  );
+}
+
+// Utilitário para concatenar classes (caso não esteja no topo do seu arquivo original)
+function cn(...classes: (string | undefined | null | false)[]) {
+  return classes.filter(Boolean).join(' ');
 }

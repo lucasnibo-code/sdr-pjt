@@ -34,12 +34,13 @@ export interface SDRCall {
 
 // --- 🚩 NOVOS TIPOS: ESTRUTURA DO COFRE DE SALDOS ---
 
-export interface SDRRankingEntry {
-  total: number;        // Total de ligações (incluindo Rota C)
-  valid_count: number;  // Ligações válidas para nota (Rota A e B)
-  sum_notes: number;    // Soma das notas para cálculo de média
-}
 
+export interface SDRRankingEntry {
+  calls: number;        
+  valid_calls: number;  
+  sum_notes: number;    
+  nota_media: number;   
+}
 export interface DashboardSummary {
   date: string;         // Data do resumo (AAAA-MM-DD)
   updatedAt: any;       // Timestamp da última atualização

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { RefreshCw, Trophy, Target, PhoneCall, AlertCircle, Calendar } from 'lucide-react';
@@ -20,7 +20,6 @@ interface SDRRankingItem {
   validos: number;
 }
 
-// Criamos um componente interno para poder usar o useSearchParams com segurança
 function SDRRankingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -29,28 +28,24 @@ function SDRRankingContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 🚩 ESTADO INICIALIZADO A PARTIR DA URL
-  const [dateFilter, setDateFilter] = useState(searchParams.get('filter') || 'month');
+  const [dateFilter, setDateFilter] = useState(searchParams.get('filter') || 'today'); // 🚩 Começa no Hoje
   const [customStartDate, setCustomStartDate] = useState(searchParams.get('start') || '');
   const [customEndDate, setCustomEndDate] = useState(searchParams.get('end') || '');
 
-  // 🚩 ATUALIZA A URL QUANDO O USUÁRIO MUDA O FILTRO
-  const updateUrlParams = (filter: string, start: string, end: string) => {
+  const updateUrlParams = useCallback((filter: string, start: string, end: string) => {
     const params = new URLSearchParams();
     params.set('filter', filter);
     if (filter === 'custom' && start) params.set('start', start);
     if (filter === 'custom' && end) params.set('end', end);
-    
-    // Atualiza a URL sem recarregar a página (shallow routing do Next 13+)
     router.push(`/dashboard/sdrs?${params.toString()}`, { scroll: false });
-  };
+  }, [router]);
 
   const handleFilterChange = (newFilter: string) => {
     setDateFilter(newFilter);
     updateUrlParams(newFilter, customStartDate, customEndDate);
   };
 
-  const getDateRange = () => {
+  const getDateRange = useCallback(() => {
     const now = new Date();
     let startIso = '';
     let endIso = '';
@@ -64,7 +59,7 @@ function SDRRankingContent() {
       const today = toLocalISO(now);
       startIso = `${today}T00:00:00.000Z`;
       endIso = `${today}T23:59:59.999Z`;
-    } else if (dateFilter === '7d') {
+    } else if (dateFilter === '7d' || dateFilter === '7days') {
       const past = new Date();
       past.setDate(now.getDate() - 7);
       startIso = `${toLocalISO(past)}T00:00:00.000Z`;
@@ -80,7 +75,7 @@ function SDRRankingContent() {
     }
 
     return { startIso, endIso };
-  };
+  }, [dateFilter, customStartDate, customEndDate]);
 
   const fetchData = async () => {
     if (dateFilter === 'custom' && (!customStartDate || !customEndDate)) return;
@@ -100,7 +95,7 @@ function SDRRankingContent() {
       const data = await res.json();
       
       if (!res.ok || data.error) {
-        throw new Error(data.error || 'Falha ao carregar o ranking de SDRs. Tente novamente.');
+        throw new Error(data.error || 'Falha ao carregar o ranking. Tente novamente.');
       }
 
       if (data.sdr_ranking) {
@@ -126,10 +121,9 @@ function SDRRankingContent() {
     }
   };
 
-  // Escuta as mudanças de URL/Filtro para disparar a busca
   useEffect(() => {
     fetchData();
-  }, [dateFilter, customStartDate, customEndDate]);
+  }, [dateFilter, customStartDate, customEndDate, getDateRange]);
 
   const getInitials = (name: string) => {
     const parts = name.trim().split(' ');
@@ -137,20 +131,18 @@ function SDRRankingContent() {
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   };
 
-  // 🚩 CONSTRUÇÃO DA URL DE CONTEXTO PARA O CARD
+  // 🚩 Função que constrói o link com os parâmetros de data
   const getSDRLink = (sdrName: string) => {
     const params = new URLSearchParams();
     params.set('filter', dateFilter);
     if (customStartDate) params.set('start', customStartDate);
     if (customEndDate) params.set('end', customEndDate);
-    
     return `/dashboard/sdrs/${encodeURIComponent(sdrName)}?${params.toString()}`;
   };
 
   return (
     <div className="space-y-8 pb-20 animate-in fade-in duration-700">
       
-      {/* CABEÇALHO COM FILTRO */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-headline font-bold text-slate-900 tracking-tight">Equipe de Vendas</h1>
@@ -195,19 +187,17 @@ function SDRRankingContent() {
                   }} 
                   className="h-8 text-xs font-medium text-slate-600 rounded-lg px-2 outline-none"
                 />
-                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={fetchData}><RefreshCw className="w-3 h-3"/></Button>
               </div>
             )}
           </div>
           
           <Button onClick={fetchData} variant="outline" className="h-11 rounded-xl border-slate-200 hover:bg-slate-50">
-            <RefreshCw className={cn("w-4 h-4 mr-2", isLoading && "animate-spin")} /> 
+            <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} /> 
             {isLoading ? "Atualizando..." : "Atualizar"}
           </Button>
         </div>
       </div>
 
-      {/* RENDERIZAÇÃO CONDICIONAL CENTRALIZADA */}
       {isLoading ? (
         <div className="flex flex-col items-center justify-center min-h-[300px]">
            <RefreshCw className="w-6 h-6 animate-spin text-indigo-500 mb-2" />
@@ -231,11 +221,11 @@ function SDRRankingContent() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {ranking.map((sdr, index) => (
+            // 🚩 LINK ATIVADO E CLICÁVEL AQUI
             <Link 
               href={getSDRLink(sdr.name)} 
               key={index}
-              // 🚩 Acessibilidade adicionada: outline e ring para navegação via TAB
-              className="block outline-none rounded-2xl focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 transition-all"
+              className="block outline-none rounded-2xl focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 transition-all cursor-pointer"
             >
               <Card className="border-slate-100 shadow-sm hover:border-indigo-300 hover:shadow-md hover:shadow-indigo-50/50 transition-all duration-300 group h-full">
                 <CardContent className="p-6">
@@ -290,7 +280,6 @@ function SDRRankingContent() {
   );
 }
 
-// 🚩 Wrapper necessário no Next.js 13+ quando usamos useSearchParams
 export default function Page() {
   return (
     <Suspense fallback={
@@ -301,9 +290,4 @@ export default function Page() {
       <SDRRankingContent />
     </Suspense>
   );
-}
-
-// Utilitário para concatenar classes (caso não esteja no topo do seu arquivo original)
-function cn(...classes: (string | undefined | null | false)[]) {
-  return classes.filter(Boolean).join(' ');
 }

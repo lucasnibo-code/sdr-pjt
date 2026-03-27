@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { CallCard } from '@/components/dashboard/CallCard';
 import { Button } from '@/components/ui/button';
@@ -20,7 +20,8 @@ import type { SDRCall, DashboardSummary } from '@/types';
 
 type SortOrder = 'date_desc' | 'score_desc' | 'score_asc';
 
-export default function SDRDetailPage() {
+// 🚩 Renomeado para Content (Padrão Next.js com Suspense)
+function SDRDetailContent() {
   const { name } = useParams(); 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -30,10 +31,9 @@ export default function SDRDetailPage() {
   const [calls, setCalls] = useState<SDRCall[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Inicializa os estados lendo a URL (se houver) ou usando os padrões
-  const initialTimeFilter = searchParams.get('period') || 'today';
-  const initialStartDate = searchParams.get('startDate') || '';
-  const initialEndDate = searchParams.get('endDate') || '';
+  const initialTimeFilter = searchParams.get('period') || searchParams.get('filter') || 'today';
+  const initialStartDate = searchParams.get('startDate') || searchParams.get('start') || '';
+  const initialEndDate = searchParams.get('endDate') || searchParams.get('end') || '';
 
   const [timeFilter, setTimeFilter] = useState(initialTimeFilter); 
   const [sortOrder, setSortOrder] = useState<SortOrder>('score_desc');
@@ -41,54 +41,80 @@ export default function SDRDetailPage() {
   const [customStartDate, setCustomStartDate] = useState(initialStartDate);
   const [customEndDate, setCustomEndDate] = useState(initialEndDate);
 
-  // Memoiza a data de hoje para o limite (max) dos inputs
   const todayMaxDate = useMemo(() => new Date().toISOString().split('T')[0], []);
 
-  // Função para atualizar a URL sem sujar o histórico (router.replace)
   const updateUrlParams = useCallback((newFilter: string, start?: string, end?: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    params.set('period', newFilter);
+    params.set('filter', newFilter);
     
     if (newFilter === 'custom' && start && end) {
-      params.set('startDate', start);
-      params.set('endDate', end);
+      params.set('start', start);
+      params.set('end', end);
     } else {
-      params.delete('startDate');
-      params.delete('endDate');
+      params.delete('start');
+      params.delete('end');
     }
 
-    // 🚩 Usando replace para não inflar o histórico de navegação
     router.replace(`?${params.toString()}`, { scroll: false });
   }, [searchParams, router]);
 
+  // 🚩 O MOTOR DE DATAS RESTAURADO: É ele quem traduz "7d" para datas exatas!
+  const getDateRange = useCallback(() => {
+    const now = new Date();
+    let startIso = '';
+    let endIso = '';
+
+    const toLocalISO = (date: Date) => {
+      const offset = date.getTimezoneOffset() * 60000;
+      return new Date(date.getTime() - offset).toISOString().split('T')[0];
+    };
+
+    if (timeFilter === 'today') {
+      const today = toLocalISO(now);
+      startIso = `${today}T00:00:00.000Z`;
+      endIso = `${today}T23:59:59.999Z`;
+    } else if (timeFilter === '7d' || timeFilter === '7days') {
+      const past = new Date();
+      past.setDate(now.getDate() - 7);
+      startIso = `${toLocalISO(past)}T00:00:00.000Z`;
+      endIso = `${toLocalISO(now)}T23:59:59.999Z`;
+    } else if (timeFilter === 'month') {
+      const monthStr = String(now.getMonth() + 1).padStart(2, '0');
+      startIso = `${now.getFullYear()}-${monthStr}-01T00:00:00.000Z`;
+      endIso = `${toLocalISO(now)}T23:59:59.999Z`;
+    } else if (timeFilter === 'custom' && customStartDate && customEndDate) {
+      startIso = `${customStartDate}T00:00:00.000Z`;
+      endIso = `${customEndDate}T23:59:59.999Z`;
+    }
+    return { startIso, endIso };
+  }, [timeFilter, customStartDate, customEndDate]);
+
+
   const fetchData = async () => {
-    // 🚩 Prevenção: Só busca "custom" se as duas datas estiverem preenchidas e válidas
     if (timeFilter === 'custom') {
       if (!customStartDate || !customEndDate) return;
-      if (customStartDate > customEndDate) return; // Data início maior que fim
+      if (customStartDate > customEndDate) return; 
     }
 
     setIsLoading(true);
     try {
       const timestamp = Date.now();
+      const { startIso, endIso } = getDateRange(); // 🚩 Pega as datas calculadas
       
-      // 1. Busca o Resumo (Cofre)
-      let summaryUrl = `/api/stats/summary?t=${timestamp}&period=${timeFilter}`;
-      if (timeFilter === 'custom' && customStartDate && customEndDate) {
-        summaryUrl += `&startDate=${customStartDate}T00:00:00.000Z&endDate=${customEndDate}T23:59:59.999Z`;
+      let summaryUrl = `/api/stats/summary?t=${timestamp}`;
+      let callsUrl = `/api/calls?ownerName=${encodeURIComponent(decodedName)}&limit=50&t=${timestamp}`;
+
+      // 🚩 Passa AS DATAS (startDate e endDate) para o Backend entender
+      if (timeFilter !== 'all' && startIso && endIso) {
+        const dateParams = `&startDate=${encodeURIComponent(startIso)}&endDate=${encodeURIComponent(endIso)}`;
+        summaryUrl += dateParams;
+        callsUrl += dateParams;
       }
+
       const resSummary = await fetch(summaryUrl);
       if (resSummary.ok) {
         const summaryData = await resSummary.json();
         setSummary(summaryData);
-      }
-
-      // 2. Busca as Últimas 20 (Lista)
-      let callsUrl = `/api/calls?ownerName=${encodeURIComponent(decodedName)}&limit=20&t=${timestamp}`;
-      if (timeFilter === 'custom' && customStartDate && customEndDate) {
-        callsUrl += `&startDate=${customStartDate}T00:00:00.000Z&endDate=${customEndDate}T23:59:59.999Z`;
-      } else {
-        callsUrl += `&period=${timeFilter}`;
       }
 
       const resCalls = await fetch(callsUrl);
@@ -104,12 +130,10 @@ export default function SDRDetailPage() {
     }
   };
 
-  // 🚩 O useEffect reage às mudanças de filtro, mas é protegido pela validação no fetchData
   useEffect(() => {
     if (decodedName) fetchData();
   }, [decodedName, timeFilter, customStartDate, customEndDate]);
 
-  // Handlers para os filtros
   const handleTimeFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newFilter = e.target.value;
     setTimeFilter(newFilter);
@@ -130,13 +154,14 @@ export default function SDRDetailPage() {
     const stats = ranking ? ranking[decodedName] : null;
 
     if (!stats) {
-      return { total: 0, avg: 0 };
+      return { total: 0, avg: 0, validos: 0 };
     }
 
-    // Como o back-end já consolida tudo e até envia a nota_media pronta:
+    // 🚩 Lendo estritamente o que o Backend mastigado envia (e o que o types.ts aprova)
     return {
-      total: stats.calls,
-      avg: stats.nota_media
+      total: Number(stats.calls || 0),
+      validos: Number(stats.valid_calls || 0),
+      avg: Number(stats.nota_media || 0)
     };
   }, [summary, decodedName]);
 
@@ -145,7 +170,6 @@ export default function SDRDetailPage() {
       if (sortOrder === 'score_desc') return (Number(b.nota_spin) || 0) - (Number(a.nota_spin) || 0);
       if (sortOrder === 'score_asc') return (Number(a.nota_spin) || 0) - (Number(b.nota_spin) || 0);
       
-      // date_desc
       const dateA = new Date(a.createdAt || a.updatedAt || 0).getTime();
       const dateB = new Date(b.createdAt || b.updatedAt || 0).getTime();
       return dateB - dateA; 
@@ -153,17 +177,16 @@ export default function SDRDetailPage() {
   }, [calls, sortOrder]);
 
 
-  // 🚩 O cabeçalho agora sempre renderiza. O loading afeta apenas a listagem/cards.
   return (
     <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20 px-4 md:px-0">
       <div className="flex flex-col gap-6">
-        <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard/sdrs')} className="w-fit -ml-2 text-slate-400 hover:text-indigo-600">
+        <Button variant="ghost" size="sm" onClick={() => router.push(`/dashboard/sdrs?filter=${timeFilter}`)} className="w-fit -ml-2 text-slate-400 hover:text-indigo-600">
           <ArrowLeft className="w-4 h-4 mr-2" /> Voltar para o Ranking
         </Button>
 
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="flex items-center gap-5">
-            <div className="w-20 h-20 rounded-2xl bg-white border border-slate-100 flex items-center justify-center shadow-sm text-2xl font-bold text-slate-300">
+            <div className="w-20 h-20 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center shadow-sm text-2xl font-black text-indigo-600">
               {getInitials(decodedName)}
             </div>
             <div>
@@ -175,7 +198,6 @@ export default function SDRDetailPage() {
             </div>
           </div>
 
-          {/* CARDS TOTAIS (Apenas Média e Volume) */}
           <div className="flex gap-3">
             <div className="bg-white border border-slate-100 rounded-xl p-4 flex flex-col items-center min-w-[140px] shadow-sm transition-opacity duration-300" style={{ opacity: isLoading ? 0.5 : 1 }}>
               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
@@ -188,9 +210,12 @@ export default function SDRDetailPage() {
 
             <div className="bg-white border border-slate-100 rounded-xl p-4 flex flex-col items-center min-w-[140px] shadow-sm transition-opacity duration-300" style={{ opacity: isLoading ? 0.5 : 1 }}>
               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
-                <PhoneCall className="w-3 h-3 text-slate-300" /> Volume Total
+                <PhoneCall className="w-3 h-3 text-emerald-500" /> Analisadas
               </span>
-              <span className="text-2xl font-headline font-bold text-slate-900">{sdrStats.total}</span>
+              <div className="flex items-baseline gap-1.5 mt-1">
+                <span className="text-2xl font-headline font-bold text-slate-900">{sdrStats.validos}</span>
+                <span className="text-xs font-bold text-slate-400">/{sdrStats.total}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -198,7 +223,6 @@ export default function SDRDetailPage() {
 
       <Separator className="bg-slate-100" />
 
-      {/* FILTROS E ATIVIDADES */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
         <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2">
           Últimas Atividades 
@@ -210,7 +234,6 @@ export default function SDRDetailPage() {
         </h3>
 
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          {/* ORDENAÇÃO */}
           <div className="flex items-center bg-white border border-slate-200 rounded-xl px-2 h-9 shadow-sm">
              <ArrowDownUp className="w-3.5 h-3.5 ml-1 text-slate-400" />
              <select 
@@ -224,7 +247,6 @@ export default function SDRDetailPage() {
              </select>
           </div>
 
-          {/* FILTRO DE DATA */}
           <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
             <Calendar className="w-3.5 h-3.5 ml-2 text-slate-400" />
             <select 
@@ -233,13 +255,12 @@ export default function SDRDetailPage() {
               className="bg-transparent text-xs font-semibold text-slate-600 focus:outline-none p-1.5 cursor-pointer"
             >
               <option value="today">Hoje</option>
-              <option value="7days">Últimos 7 dias</option>
+              <option value="7d">Últimos 7 dias</option>
               <option value="month">Mês atual</option>
               <option value="all">Todo Histórico</option>
               <option value="custom">Personalizado...</option>
             </select>
             
-            {/* INPUTS CUSTOMIZADOS (com limite de data futura e botão manual) */}
             {timeFilter === 'custom' && (
               <div className="flex items-center gap-2 sm:ml-2 sm:pl-3 sm:border-l border-slate-100 animate-in zoom-in duration-200">
                 <input 
@@ -287,13 +308,12 @@ export default function SDRDetailPage() {
         <div>
           <p className="text-xs font-bold text-amber-800 uppercase tracking-tight">Barreira de Performance Ativa</p>
           <p className="text-[11px] text-amber-700 mt-0.5">
-            Para economizar cota, exibimos as 20 chamadas mais recentes da busca. 
-            O volume total de <strong>{sdrStats.total}</strong> chamadas continua contabilizado nos cards superiores.
+            Para economizar cota, exibimos até as 50 chamadas mais recentes da busca. 
+            O volume de <strong>{sdrStats.total}</strong> chamadas continua contabilizado nos cards.
           </p>
         </div>
       </div>
 
-      {/* RENDERIZAÇÃO CONDICIONAL DA LISTA */}
       <div className="grid gap-3 min-h-[300px]">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
@@ -312,5 +332,19 @@ export default function SDRDetailPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// 🚩 WRAPPER OBRIGATÓRIO NO NEXT.JS PARA PÁGINAS COM USE_SEARCH_PARAMS
+export default function SDRDetailPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col items-center justify-center min-h-[400px]">
+        <RefreshCw className="w-6 h-6 animate-spin text-indigo-500 mb-4" />
+        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Carregando Perfil...</p>
+      </div>
+    }>
+      <SDRDetailContent />
+    </Suspense>
   );
 }

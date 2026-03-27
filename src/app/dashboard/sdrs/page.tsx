@@ -1,19 +1,17 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { RefreshCw, Trophy, Target, PhoneCall, AlertCircle } from 'lucide-react';
+import { RefreshCw, Trophy, Target, PhoneCall, AlertCircle, Calendar } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
-// --- 1. TIPAGEM ESTRITA ---
-// O que esperamos receber da API
+// --- TIPAGEM ---
 interface API_SDRStats {
   nota_media?: string | number;
   calls?: string | number;
   valid_calls?: string | number;
 }
 
-// O formato final que o nosso componente vai renderizar
 interface SDRRankingItem {
   name: string;
   nota: number;
@@ -24,23 +22,64 @@ interface SDRRankingItem {
 export default function SDRsPage() {
   const [ranking, setRanking] = useState<SDRRankingItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null); // --- 2. ESTADO DE ERRO RESTAURADO ---
+  const [error, setError] = useState<string | null>(null);
+  
+  // 🚩 ESTADOS DE FILTRO DE DATA
+  const [dateFilter, setDateFilter] = useState('month'); // Padrão: Mês atual
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+
+  // 1. Memoize o cálculo de datas para evitar repetição
+  const getDateRange = () => {
+    const now = new Date();
+    let startIso = '';
+    let endIso = '';
+
+    const toLocalISO = (date: Date) => {
+      // Ajuste para pegar a data local ignorando o fuso UTC no split
+      const offset = date.getTimezoneOffset() * 60000;
+      return new Date(date.getTime() - offset).toISOString().split('T')[0];
+    };
+
+    if (dateFilter === 'today') {
+      const today = toLocalISO(now);
+      startIso = `${today}T00:00:00.000Z`;
+      endIso = `${today}T23:59:59.999Z`;
+    } else if (dateFilter === '7d') {
+      const past = new Date();
+      past.setDate(now.getDate() - 7);
+      startIso = `${toLocalISO(past)}T00:00:00.000Z`;
+      endIso = `${toLocalISO(now)}T23:59:59.999Z`;
+    } else if (dateFilter === 'month') {
+      const monthStr = String(now.getMonth() + 1).padStart(2, '0');
+      startIso = `${now.getFullYear()}-${monthStr}-01T00:00:00.000Z`;
+      endIso = `${toLocalISO(now)}T23:59:59.999Z`;
+    } else if (dateFilter === 'custom' && customStartDate && customEndDate) {
+      // Validação simples
+      if (customStartDate > customEndDate) return { startIso: '', endIso: '' };
+      startIso = `${customStartDate}T00:00:00.000Z`;
+      endIso = `${customEndDate}T23:59:59.999Z`;
+    }
+
+    return { startIso, endIso };
+  };
 
   const fetchData = async () => {
+    // Se for custom e as datas não estiverem preenchidas, não busca ainda
+    if (dateFilter === 'custom' && (!customStartDate || !customEndDate)) return;
+
     setIsLoading(true);
     setError(null);
 
     try {
-      const timestamp = Date.now();
+      const { startIso, endIso } = getDateRange();
+      let summaryUrl = `/api/stats/summary?t=${Date.now()}`;
       
-      // 🚩 Calcula o Início e o Fim do mês atual para mandar pro Backend
-      const now = new Date();
-      const monthStr = String(now.getMonth() + 1).padStart(2, '0');
-      const startIso = `${now.getFullYear()}-${monthStr}-01T00:00:00.000Z`;
-      const endIso = `${now.toISOString().split('T')[0]}T23:59:59.999Z`;
+      if (dateFilter !== 'all' && startIso && endIso) {
+        summaryUrl += `&startDate=${encodeURIComponent(startIso)}&endDate=${encodeURIComponent(endIso)}`;
+      }
 
-      // 🚩 Agora mandamos as datas exatas em vez da palavra "month"
-      const res = await fetch(`/api/stats/summary?startDate=${startIso}&endDate=${endIso}&t=${timestamp}`);
+      const res = await fetch(summaryUrl);
       const data = await res.json();
 
       if (!res.ok || data.error) {
@@ -62,7 +101,7 @@ export default function SDRsPage() {
 
         setRanking(formattedRanking);
       } else {
-        setRanking([]);
+        setRanking([]); 
       }
     } catch (err: any) {
       console.error("❌ Erro ao carregar SDRs:", err);
@@ -72,9 +111,10 @@ export default function SDRsPage() {
     }
   };
 
+  // 2. useEffect observando todas as mudanças de filtro
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [dateFilter, customStartDate, customEndDate]);
 
   const getInitials = (name: string) => {
     const parts = name.trim().split(' ');
@@ -82,46 +122,80 @@ export default function SDRsPage() {
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-        <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
-        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Processando Consultores...</p>
-      </div>
-    );
-  }
-
-  // --- 4. TELA DE ERRO AMIGÁVEL RESTAURADA ---
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 animate-in fade-in zoom-in duration-300">
-        <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-2">
-          <AlertCircle className="w-8 h-8" />
-        </div>
-        <h2 className="text-xl font-headline font-bold text-slate-800">Problema de Conexão</h2>
-        <p className="text-sm text-slate-500 text-center max-w-md bg-white border border-slate-200 p-4 rounded-xl shadow-sm">
-          {error}
-        </p>
-        <Button onClick={fetchData} className="mt-4 bg-slate-900 hover:bg-slate-800 rounded-xl">
-          <RefreshCw className="w-4 h-4 mr-2" /> Tentar Novamente
-        </Button>
-      </div>
-    );
-  }
-
+  // 3. Melhoria na UX de Loading (Cabeçalho sempre visível)
   return (
     <div className="space-y-8 pb-20 animate-in fade-in duration-700">
+      
+      {/* 🚩 CABEÇALHO COM FILTRO DE DATAS ADICIONADO */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-headline font-bold text-slate-900 tracking-tight">Equipe de Vendas</h1>
-          <p className="text-slate-400 text-sm mt-1">Ranking e performance dos SDRs (Mês Atual).</p>
+          <p className="text-slate-400 text-sm mt-1">Ranking e performance dos SDRs por período.</p>
         </div>
-        <Button onClick={fetchData} variant="outline" className="h-11 rounded-xl border-slate-200 hover:bg-slate-50">
-          <RefreshCw className="w-4 h-4 mr-2" /> Atualizar
-        </Button>
+        
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm">
+            <div className="flex items-center h-8">
+              <Calendar className="w-4 h-4 text-slate-400 mr-2" />
+              <select 
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="text-sm font-bold text-slate-700 bg-transparent outline-none cursor-pointer"
+              >
+                <option value="today">Hoje</option>
+                <option value="7d">Últimos 7 dias</option>
+                <option value="month">Mês atual</option>
+                <option value="all">Todo o período</option>
+                <option value="custom">Personalizado...</option>
+              </select>
+            </div>
+            
+            {dateFilter === 'custom' && (
+              <div className="flex items-center gap-2 sm:ml-2 sm:pl-3 sm:border-l border-slate-100 animate-in zoom-in duration-200">
+                <input 
+                  type="date" 
+                  value={customStartDate} 
+                  onChange={e => setCustomStartDate(e.target.value)} 
+                  className="h-8 text-xs font-medium text-slate-600 rounded-lg px-2 outline-none"
+                />
+                <span className="text-slate-300 text-[10px] font-bold">ATÉ</span>
+                <input 
+                  type="date" 
+                  value={customEndDate} 
+                  onChange={e => setCustomEndDate(e.target.value)} 
+                  className="h-8 text-xs font-medium text-slate-600 rounded-lg px-2 outline-none"
+                />
+                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={fetchData}><RefreshCw className="w-3 h-3"/></Button>
+              </div>
+            )}
+          </div>
+          
+          <Button onClick={fetchData} variant="outline" className="h-11 rounded-xl border-slate-200 hover:bg-slate-50">
+            <RefreshCw className="w-4 h-4 mr-2" /> Atualizar
+          </Button>
+        </div>
       </div>
 
-      {ranking.length === 0 ? (
+      {/* 🚩 RENDERIZAÇÃO CONDICIONAL ABAIXO DO CABEÇALHO */}
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center min-h-[300px]">
+           <RefreshCw className="w-6 h-6 animate-spin text-indigo-500 mb-2" />
+           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">CARREGANDO RANKING...</p>
+        </div>
+      ) : error ? (
+        <div className="flex flex-col items-center justify-center min-h-[300px] gap-4 animate-in fade-in zoom-in duration-300">
+          <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-2">
+            <AlertCircle className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-headline font-bold text-slate-800">Problema de Conexão</h2>
+          <p className="text-sm text-slate-500 text-center max-w-md bg-white border border-slate-200 p-4 rounded-xl shadow-sm">
+            {error}
+          </p>
+          <Button onClick={fetchData} className="mt-4 bg-slate-900 hover:bg-slate-800 rounded-xl">
+            <RefreshCw className="w-4 h-4 mr-2" /> Tentar Novamente
+          </Button>
+        </div>
+      ) : ranking.length === 0 ? (
         <div className="text-center py-20 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-100">
           <p className="text-slate-400 italic">Nenhum consultor registrou chamadas neste período.</p>
         </div>

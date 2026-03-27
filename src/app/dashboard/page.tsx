@@ -24,6 +24,7 @@ export default function DashboardPage() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [calls, setCalls] = useState<SDRCall[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null); // 🚩 Estado de erro restaurado
   const [searchTerm, setSearchTerm] = useState('');
   
   const [sortOrder, setSortOrder] = useState<SortOrder>('score_desc');
@@ -34,32 +35,65 @@ export default function DashboardPage() {
 
   const fetchData = async () => {
     setIsLoading(true);
+    setError(null);
     try {
       const timestamp = Date.now();
       
-      // 🚩 1. BUSCA O COFRE (Resumo mastigado) - Custo: 1 leitura
-      let summaryUrl = `/api/stats/summary?t=${timestamp}&period=${dateFilter}`;
-      if (dateFilter === 'custom' && customStartDate && customEndDate) {
-        summaryUrl += `&startDate=${customStartDate}&endDate=${customEndDate}`;
+      // 🚩 1. Calcula as datas exatas no Frontend para forçar o Backend
+      let startIso = '';
+      let endIso = '';
+      const now = new Date();
+      
+      if (dateFilter === 'today') {
+        const todayStr = now.toISOString().split('T')[0]; 
+        startIso = `${todayStr}T00:00:00.000Z`;
+        endIso = `${todayStr}T23:59:59.999Z`;
+      } else if (dateFilter === '7d') {
+        const past = new Date();
+        past.setDate(now.getDate() - 7);
+        startIso = `${past.toISOString().split('T')[0]}T00:00:00.000Z`;
+        endIso = `${now.toISOString().split('T')[0]}T23:59:59.999Z`;
+      } else if (dateFilter === 'month') {
+        const monthStr = String(now.getMonth() + 1).padStart(2, '0');
+        startIso = `${now.getFullYear()}-${monthStr}-01T00:00:00.000Z`;
+        endIso = `${now.toISOString().split('T')[0]}T23:59:59.999Z`;
+      } else if (dateFilter === 'custom' && customStartDate && customEndDate) {
+        startIso = `${customStartDate}T00:00:00.000Z`;
+        endIso = `${customEndDate}T23:59:59.999Z`;
       }
-      const resSummary = await fetch(summaryUrl);
+
+      // 🚩 2. Monta as URLs passando as datas exatas
+      let summaryUrl = `/api/stats/summary?t=${timestamp}`;
+      let callsUrl = `/api/calls?limit=50&t=${timestamp}`; 
+      
+      if (dateFilter !== 'all' && startIso && endIso) {
+        summaryUrl += `&startDate=${startIso}&endDate=${endIso}`;
+        callsUrl += `&startDate=${startIso}&endDate=${endIso}`;
+      }
+
+      // 🚩 3. Dispara os dois pedidos ao mesmo tempo (Mais rápido)
+      const [resSummary, resCalls] = await Promise.all([
+        fetch(summaryUrl),
+        fetch(callsUrl)
+      ]);
+
       const summaryData = await resSummary.json();
-      setSummary(summaryData);
+      const callsData = await resCalls.json();
 
-      // 🚩 2. BUSCA A LISTA COM BARREIRA (Limite de 20) - Custo: 20 leituras
-      let callsUrl = `/api/calls?limit=20&t=${timestamp}`; // BARREIRA ATIVADA
-      if (dateFilter === 'custom' && customStartDate && customEndDate) {
-        callsUrl += `&startDate=${customStartDate}&endDate=${customEndDate}`;
-      } else {
-        callsUrl += `&period=${dateFilter}`;
+      if (!resSummary.ok || summaryData.error) {
+        throw new Error(summaryData.error || 'Falha ao carregar as métricas do Cofre.');
+      }
+      
+      if (!resCalls.ok || callsData.error) {
+        throw new Error(callsData.error || 'Falha ao carregar a lista de chamadas.');
       }
 
-      const resCalls = await fetch(callsUrl);
-      const callsData = await resCalls.json();
+      setSummary(summaryData);
       setCalls(Array.isArray(callsData) ? callsData : []);
 
-    } catch (error) {
-      console.error("Erro ao sincronizar cofre:", error);
+    } catch (err: any) {
+      console.error("❌ Erro na sincronização do Dashboard:", err);
+      setError(err.message);
     } finally {
       setIsLoading(false);
     }
@@ -67,9 +101,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchData();
-  }, [dateFilter]); // Recarrega se o filtro de data mudar
+  }, [dateFilter]); 
 
-  // Filtro de busca apenas sobre as 20 carregadas (para performance local)
   const filteredCalls = useMemo(() => {
     let result = [...calls];
     if (searchTerm) {
@@ -82,21 +115,40 @@ export default function DashboardPage() {
     return result.sort((a, b) => {
       if (sortOrder === 'score_desc') return (b.nota_spin || 0) - (a.nota_spin || 0);
       if (sortOrder === 'score_asc') return (a.nota_spin || 0) - (b.nota_spin || 0);
-      return 0; // Data já vem ordenada do banco
+      return 0; 
     });
   }, [calls, searchTerm, sortOrder]);
 
-  // MÉTRICAS VINDAS DIRETAMENTE DO COFRE (Resumo)
-  const avgSpin = summary ? (summary.sum_notes / (summary.valid_calls_for_media || 1)) : 0;
-  const totalCalls = summary?.total_calls || 0;
-  const analyzedCount = summary?.analyzed_calls || 0;
-  const activeSDRsCount = summary?.sdr_ranking ? Object.keys(summary.sdr_ranking).length : 0;
+  // 🚩 MÉTRICAS CORRIGIDAS (Adaptadas para o novo Backend)
+  const stats = summary as any;
+  const isSummaryEmpty = stats?.empty === true;
+  const avgSpin = stats && !isSummaryEmpty ? (stats.sum_notes / (stats.valid_calls || 1)) : 0;
+  const totalCalls = stats?.total_calls || 0;
+  const analyzedCount = stats?.valid_calls || 0;
+  const activeSDRsCount = stats?.sdr_ranking ? Object.keys(stats.sdr_ranking).length : 0;
 
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
         <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
-        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Acessando Cofre de Saldos...</p>
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Acessando Banco de Dados...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 animate-in fade-in zoom-in duration-300">
+        <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-2">
+          <AlertCircle className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-headline font-bold text-slate-800">Problema de Conexão</h2>
+        <p className="text-sm text-slate-500 text-center max-w-md bg-white border border-slate-200 p-4 rounded-xl shadow-sm">
+          {error}
+        </p>
+        <Button onClick={fetchData} className="mt-4 bg-slate-900 hover:bg-slate-800 rounded-xl">
+          <RefreshCw className="w-4 h-4 mr-2" /> Tentar Novamente
+        </Button>
       </div>
     );
   }
@@ -152,7 +204,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* CARDS CONECTADOS AO COFRE */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="border-slate-100 shadow-sm group">
           <CardContent className="p-6 flex items-center gap-4">
@@ -189,7 +240,6 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <div className="space-y-4">
           <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Ranking de Performance</h3>
-          {/* O Ranking agora deve receber o objeto mastigado do summary no próximo ajuste */}
           <SDRRanking summary={summary} /> 
         </div>
 
@@ -198,7 +248,7 @@ export default function DashboardPage() {
             <div className="relative flex-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <Input 
-                placeholder="Pesquisar nas últimas 20 chamadas..." 
+                placeholder="Pesquisar nas chamadas recentes..." 
                 className="pl-11 h-12 bg-white border-slate-100 rounded-xl shadow-sm"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -221,7 +271,7 @@ export default function DashboardPage() {
           <div className="space-y-2 mb-4 bg-amber-50 border border-amber-100 rounded-lg p-3 flex items-center gap-3">
              <AlertCircle className="w-4 h-4 text-amber-600" />
              <p className="text-amber-700 text-[11px] font-medium">
-               Exibindo as 20 chamadas mais recentes para otimizar o consumo. Use a busca ou filtros para refinar.
+               Exibindo as chamadas de acordo com o filtro. Limite de segurança ativado para economizar dados.
              </p>
           </div>
 
@@ -230,13 +280,13 @@ export default function DashboardPage() {
               filteredCalls.map(call => <CallCard key={call.id} call={call} />)
             ) : (
               <div className="text-center py-20 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-100">
-                <p className="text-slate-400 italic">Nenhuma chamada recente encontrada.</p>
+                <p className="text-slate-400 italic">Nenhuma chamada encontrada para este período.</p>
               </div>
             )}
             
-            {calls.length >= 20 && (
+            {calls.length >= 50 && (
                <Button variant="ghost" className="w-full py-8 text-slate-400 hover:text-indigo-600 font-bold text-xs tracking-widest uppercase">
-                 Ver histórico completo no perfil do SDR →
+                 Limite de 50 chamadas atingido. Refine a busca →
                </Button>
             )}
           </div>
